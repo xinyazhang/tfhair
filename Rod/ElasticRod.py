@@ -20,9 +20,11 @@ class ElasticRod:
 
     xs = None
     thetas = None
+    restl = None
 
-    def __init__(self, segments, thetas):
-        self.xs = segments
+    def __init__(self, verts, restlength, thetas):
+        self.xs = verts
+        self.restl = restlength
         self.thetas = thetas
 
     '''
@@ -70,7 +72,9 @@ def TFGetCurvature(ev, enorms):
 
 def TFGetEBend(rod):
     rod.evec = TFGetEdgeVector(rod.xs)
-    rod.enorms = TFGetEdgeLength(rod.evec)
-    rod.ls = TFGetVoronoiEdgeLength(rod.enorms)
-    rod.ks = TFGetCurvature(rod.evec, rod.enorms)
-    return tf.reduce_sum(tf.multiply(tf.norm(rod.ks, ord=2, axis=1), 1.0/rod.ls))
+#    rod.enorms = TFGetEdgeLength(rod.evec)
+    rod.restvl = TFGetVoronoiEdgeLength(rod.restl)
+    rod.ks = TFGetCurvature(rod.evec, rod.restl)
+    #return tf.reduce_sum(tf.multiply(tf.norm(rod.ks, ord=2, axis=1), 1.0/rod.restvl))
+    sqnorm = tf.reduce_sum(tf.multiply(rod.ks, rod.ks), 1, keep_dims=False)
+    return tf.reduce_sum(tf.multiply(sqnorm, 1.0/rod.restvl))

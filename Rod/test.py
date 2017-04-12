@@ -19,7 +19,9 @@ irod = ElasticRod(tf.placeholder(tf.float32, shape=[n+1, 3]), tf.placeholder(tf.
 
 # Output tensor
 EBend = TFGetEBend(irod)
+ETwist = TFGetETwist(irod)
 Force = tf.gradients(-EBend, irod.xs)
+TForce = tf.gradients(-ETwist, irod.thetas)
 
 sess.run(tf.global_variables_initializer())
 
@@ -31,11 +33,12 @@ xs=np.array([
     ])
 rl = helper.calculate_rest_length(xs)
 print(rl)
-thetas=np.empty(shape=[n], dtype=np.float32)
+thetas=np.zeros(shape=[n], dtype=np.float32)
 
 inputdict = {irod.xs:xs, irod.restl:rl, irod.thetas:thetas}
 print(irod.ks.eval(feed_dict=inputdict))
 print(EBend.eval(feed_dict=inputdict))
+print('Twist %f' % ETwist.eval(feed_dict=inputdict))
 print(Force[0].eval(feed_dict=inputdict))
 
 xs2=np.array([
@@ -47,6 +50,7 @@ xs2=np.array([
 rl2 = helper.calculate_rest_length(xs2)
 inputdict = {irod.xs:xs2, irod.restl:rl2, irod.thetas:thetas}
 print(EBend.eval(feed_dict=inputdict))
+print(ETwist.eval(feed_dict=inputdict))
 print(Force[0].eval(feed_dict=inputdict))
 
 xs3=np.array([
@@ -62,6 +66,7 @@ xs3=np.array([
 rl3 = helper.calculate_rest_length(xs3)
 inputdict = {irod.xs:xs3, irod.restl:rl3, irod.thetas:thetas}
 print(EBend.eval(feed_dict=inputdict))
+print(ETwist.eval(feed_dict=inputdict))
 print(Force[0].eval(feed_dict=inputdict))
 
 xs4=np.array([
@@ -73,4 +78,17 @@ xs4=np.array([
 rl4 = helper.calculate_rest_length(xs4)
 inputdict = {irod.xs:xs4, irod.restl:rl4, irod.thetas:thetas}
 print(EBend.eval(feed_dict=inputdict))
+print(ETwist.eval(feed_dict=inputdict))
+print(Force[0].eval(feed_dict=inputdict))
+
+xs5=np.array([
+    [-1,0.0,0],
+    [0,0,0],
+    [1,0,0],
+    [2,1,0],
+    ])
+rl5 = helper.calculate_rest_length(xs5)
+inputdict = {irod.xs:xs5, irod.restl:rl5, irod.thetas:thetas}
+print(EBend.eval(feed_dict=inputdict))
+print(ETwist.eval(feed_dict=inputdict))
 print(Force[0].eval(feed_dict=inputdict))

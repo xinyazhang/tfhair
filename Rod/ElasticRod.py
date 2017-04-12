@@ -73,4 +73,4 @@ def TFGetEBend(rod):
     rod.enorms = TFGetEdgeLength(rod.evec)
     rod.ls = TFGetVoronoiEdgeLength(rod.enorms)
     rod.ks = TFGetCurvature(rod.evec, rod.enorms)
-    return tf.norm(rod.ks, ord=2, axis=1)/rod.ls
+    return tf.reduce_sum(tf.multiply(tf.norm(rod.ks, ord=2, axis=1), 1.0/rod.ls))

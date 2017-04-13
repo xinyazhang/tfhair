@@ -13,16 +13,25 @@ Or run directly using
 """
 
 import bpy
-import json
+import os, json
 import mathutils
 import numpy as np
 from math import sin, cos
 
 scene = bpy.context.scene
+
+# simulation settings
 simtime = 0
 timestep = 0.1
 fps = scene.render.fps
 keyframe = 0
+
+# render settings
+checkerboard_tex = bpy.data.textures.new("Checkerboard", type="IMAGE")
+checkerboard_tex.image = bpy.data.images.load(os.path.abspath("./textures/checkerboard.jpg"))
+rod_material = bpy.data.materials.new(name="RodMaterial")
+tex_slot = rod_material.texture_slots.add()
+tex_slot.texture = checkerboard_tex
 
 def tick():
     global simtime, keyframe
@@ -45,8 +54,9 @@ class RodState(object):
         super(RodState, self).__init__()
         self.name = name
         self.radius = radius
-        self._init_objects(knots)
         self.rod_tilt = 0
+        self.style = style
+        self._init_objects(knots)
 
     def _init_objects(self, knots):
         # generate NURBS curve
@@ -55,9 +65,11 @@ class RodState(object):
         curve_data.bevel_object = bpy.data.objects["BezierCircle"]
         # curve type
         self.polyline = curve_data.splines.new("NURBS")
-        self.polyline.points.add(knots - len(self.polyline.points) + 2)
+        self.polyline.points.add(knots - len(self.polyline.points))
+        self.polyline.use_endpoint_u = True     # connect start and stop points
         # add curve to scene
         self.centerline = bpy.data.objects.new("%s.centerline" % self.name, curve_data)
+        self.centerline.data.materials.append(rod_material)
         scene.objects.link(self.centerline)
 
     def select(self):
@@ -67,19 +79,10 @@ class RodState(object):
     def update(self, xs, thetas):
         # add inter control points
         for i, (x, y, z) in enumerate(xs):
-            pt = self.polyline.points[i+1]
+            pt = self.polyline.points[i]
             pt.co = (x, y, z, 1.0)
             pt.radius = self.radius
             pt.tilt = thetas[i] + i * self.rod_tilt
-
-        # fix for spline border cases
-        pt1 = self.polyline.points[0]
-        pt2 = self.polyline.points[1]
-        pt1.co, pt1.radius, pt1.tilt = pt2.co, pt2.radius, pt2.tilt
-
-        pt1 = self.polyline.points[-1]
-        pt2 = self.polyline.points[-2]
-        pt1.co, pt1.radius, pt1.tilt = pt2.co, pt2.radius, pt2.tilt
 
         # add keyframes
         for point in self.polyline.points:

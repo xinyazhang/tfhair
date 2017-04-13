@@ -13,10 +13,11 @@ Or run directly using
 """
 
 import bpy
-import os, json
+import os, sys
 import mathutils
 import numpy as np
 from math import sin, cos
+from optparse import OptionParser
 
 scene = bpy.context.scene
 
@@ -92,27 +93,58 @@ class RodState(object):
 def init_scene():
     delete_object_by_name("Cube")
 
-def init_rods():
-    pass
+def run_sim(data):
+    n_timesteps, n_rods, n_centerpoints, n_dim = data.shape
+    radius = 0.1
+
+    # init rods
+    rods = [ RodState("rod-%d" % i, n_centerpoints, radius, "rod") for i in range(n_rods) ]
+    for t in range(n_timesteps):
+        time_slice = data[t,:,:,:]
+        for i, rod in enumerate(rods):
+            xs = time_slice[i,:,0:3]
+            ts = time_slice[i,:,3]
+            rod.update(xs, ts)
+        tick()
+    scene.frame_set(0)
 
 def save_blend(filename):
     bpy.ops.wm.save_as_mainfile(filepath=filename)
 
-def test_sim():
-    radius = 0.1
-    intervals = np.arange(0, 6.28, 0.01)
+def fake_data():
+    intervals = np.arange(0, 6.28, 0.1)
     knots = len(intervals)
-    rod = RodState("rod", knots, radius, "rod")
+    n_timesteps = 100
+    n_rods = 1
+    data = np.zeros(shape=[n_timesteps, n_rods, knots, 4], dtype=float)
+    for t in range(n_timesteps):
+        data[t,0,:,:] = [ [ sin(x + simtime), x, 0.0, 0.0 ] for x in intervals ]
+        tick()
+    global simtime
+    simtime = 0
+    return data
 
-    for i in range(100):
-        xs = [ [ sin(x + simtime), x, 0.0 ] for x in intervals ]
-        thetas = [ 0 ] * len(intervals)
-        rod.update(xs, thetas)
-        if i != 100: tick()
-    scene.frame_set(0)
+def option_parser():
+    parser = OptionParser()
+    parser.add_option("-f", "--file", dest="filename",
+            help="write report to FILE", metavar="FILE")
+    index = 0
+    for i, arg in enumerate(sys.argv):
+        if "BlenderVis.py" in arg:
+            index = i
+            break
+    (options, args) = parser.parse_args(sys.argv[index:])
+    return options
 
 if __name__ == "__main__":
     create_bevel_circle()
     init_scene()
-    init_rods()
-    test_sim()
+    options = option_parser()
+
+    if options.filename is None:
+        data = fake_data()
+    else:
+        filename = sys.argv[1]
+        data = np.fromfile(filename, dtype=float)
+
+    run_sim(data)

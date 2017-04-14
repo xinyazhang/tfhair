@@ -3,6 +3,7 @@
 import tensorflow as tf
 import test_V
 import test_T
+import test_L
 
 #sess = tf.InteractiveSession()
 #sess.run(tf.global_variables_initializer())
@@ -19,3 +20,5 @@ with tf.Session() as sess:
 with tf.Session() as sess:
     tf.global_variables_initializer()
     test_T.run()
+
+test_L.run()

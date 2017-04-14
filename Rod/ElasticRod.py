@@ -64,7 +64,6 @@ def _diffslices(norms, dim = 0):
     return en_i_1, en_i
 
 def TFGetEdgeVector(xs):
-    shape = xs.shape.as_list()
     x_i_1, x_i = _diffslices(xs, 0)
     return x_i - x_i_1
 

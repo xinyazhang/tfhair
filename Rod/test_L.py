@@ -39,6 +39,7 @@ def run():
     loss = tf.reduce_sum(tf.multiply(dL, dL), axis=None, keep_dims=False)
     #train_op = tf.train.GradientDescentOptimizer(learning_rate).minimize(loss)
     train_op = tf.train.AdamOptimizer(learning_rate).minimize(loss)
+    # TODO: What is the best optimizer for our task?
 
     thetas = np.zeros(shape=[n], dtype=np.float32)
     xs = np.array([

@@ -33,31 +33,33 @@ def run():
         [1 + h,-1,0],
         [2 + h,0,0],
         ])
-    inputdict = {
-            rodthis.xs : xs,
-            rodthis.restl : rl,
-            rodthis.thetas : thetas,
-            rodnext.xs : xsbar,
-            rodnext.restl : rl,
-            rodnext.thetas : thetas
-            }
-    print('Kinetic energy %f Expecting: %f' %
-            (kinetic.eval(feed_dict=inputdict), 0.5 * 3 * math.sqrt(2))
-         )
-    # print(rodthis.fullrestvl.eval(feed_dict=inputdict))
-    # print(rodthis.xdots.eval(feed_dict=inputdict))
-
     xdots = np.array([
         [0,-1,0],
         [0,-1,0],
         [0,-1,0],
         [0,-1,0]
         ])
-    inputdict = {
-            rodd.xs : xs,
-            rodd.restl : rl,
-            rodd.thetas : thetas,
-            rodd.xdots : xdots
-            }
-    print('Kinetic energy %f Expecting: %f' %
-           (kineticD.eval(feed_dict=inputdict), 0.5 * 3 * math.sqrt(2)))
+    with tf.Session() as sess:
+        tf.global_variables_initializer()
+        inputdict = {
+                rodthis.xs : xs,
+                rodthis.restl : rl,
+                rodthis.thetas : thetas,
+                rodnext.xs : xsbar,
+                rodnext.restl : rl,
+                rodnext.thetas : thetas
+                }
+        print('Kinetic energy %f Expecting: %f' %
+                (kinetic.eval(feed_dict=inputdict), 0.5 * 3 * math.sqrt(2))
+             )
+        inputdict = {
+                rodd.xs : xs,
+                rodd.restl : rl,
+                rodd.thetas : thetas,
+                rodd.xdots : xdots
+                }
+        print('Kinetic energy %f Expecting: %f' %
+               (kineticD.eval(feed_dict=inputdict), 0.5 * 3 * math.sqrt(2)))
+    # print(rodthis.fullrestvl.eval(feed_dict=inputdict))
+    # print(rodthis.xdots.eval(feed_dict=inputdict))
+

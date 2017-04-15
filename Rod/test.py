@@ -13,12 +13,6 @@ import test_L
 
 # print(testo.eval(feed_dict={testi:[0]}))
 
-with tf.Session() as sess:
-    tf.global_variables_initializer()
-    test_V.run()
-
-with tf.Session() as sess:
-    tf.global_variables_initializer()
-    test_T.run()
-
+test_V.run()
+test_T.run()
 test_L.run()

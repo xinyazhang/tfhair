@@ -14,13 +14,18 @@ This is a very flexible class. It may store:
 class ElasticRod:
     '''
     Convention of essential ElasticRod members
-    xs: 1D (n+2) x 3 tensor, for vertex positions
-    thetas: 1D n+1 tensor, for twisting
+    xs: 2D (n+2) x 3 tensor, for vertex positions
+    thetas: 1D n+1 tensor, for twisting on edges w.r.t. reference frame (aka Bishop frame)
+            Note, we assumes piece-wise constant twisting
+    refd1s, refd2s: 2D (n+1) x 3 tensor, to store reference directions
     '''
 
     xs = None
     thetas = None
     restl = None
+
+    refd1s = None
+    refd2s = None
 
     c = None # Translation
     q = None # Rotation quaternion
@@ -103,10 +108,20 @@ def TFGetEBend(rod):
     return tf.reduce_sum(tf.multiply(sqnorm, 1.0/rod.innerrestvl))
 
 # For unit \beta
+# This should be a function w.r.t. thetas and xs
+# which means difftheta also depends on xs
 def TFGetETwist(rod):
-    theta_i_1, theta_i = _diffslices(rod.thetas)
-    difftheta = theta_i - theta_i_1
+    #theta_i_1, theta_i = _diffslices(rod.thetas)
+    refd1primes = tf.cross(rod.ks, rod.refd1s)
+    rod.mbars = tf.reduce_sum(tf.multiply(refd1primes, rod.refd2s), 1, keep_dims=False)
+    difftheta = rod.thetas - rod.mbars
     return tf.reduce_sum(tf.multiply(difftheta*difftheta, 1.0/rod.innerrestvl))
+
+def TFPropogateRDs(rodprev, rodnow):
+    '''
+    Calculate the current reference directions from the previous time frame.
+    '''
+    pass #TODO
 
 # Calculate Kinetic Energy Indirectly, For unit \rho
 def TFKineticI(rodnow, rodnext, h):

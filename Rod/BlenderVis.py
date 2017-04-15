@@ -28,17 +28,13 @@ timestep = 0.1
 fps = scene.render.fps
 keyframe = 0
 
-# render settings
-checkerboard_tex = bpy.data.textures.new("Checkerboard", type="IMAGE")
-checkerboard_tex.image = bpy.data.images.load(os.path.abspath("./textures/checkerboard.jpg"))
-rod_material = bpy.data.materials.new(name="RodMaterial")
-tex_slot = rod_material.texture_slots.add()
-tex_slot.texture = checkerboard_tex
-
-# axis settings
+# display settings
 axis_radius = 0.002
 axis_length = 0.5
 axis_group = None
+
+# render settings
+rod_material = None
 
 def tick():
     global simtime, keyframe
@@ -52,8 +48,37 @@ def delete_object_by_name(name):
         bpy.data.objects[name].select = True
         bpy.ops.object.delete()
 
-def create_bevel_circle():
+def init_bevel_circle():
     bpy.ops.curve.primitive_bezier_circle_add()
+
+def init_viewport_shading():
+    for area in bpy.context.screen.areas: # iterate through areas in current screen
+        if area.type == 'VIEW_3D':
+            for space in area.spaces: # iterate through spaces in current VIEW_3D area
+                if space.type == 'VIEW_3D': # check if space is a 3D view
+                    space.viewport_shade = 'MATERIAL' # set the viewport shading to rendered
+
+def init_texture_material(mat_name, tex_name, tex_file):
+    mat = bpy.data.materials.new(name=mat_name)
+    mat.use_nodes = True
+    nt = mat.node_tree
+    nodes = nt.nodes
+    links = nt.links
+    nodes.clear()
+
+    output = nodes.new("ShaderNodeOutputMaterial")
+    diffuse = nodes.new("ShaderNodeBsdfDiffuse")
+    texture = nodes.new("ShaderNodeTexImage")
+    texcoord = nodes.new("ShaderNodeGeometry")
+
+    texture.image = bpy.data.images.load(os.path.abspath(tex_file))
+    texture.projection = "TUBE"
+
+    links.new(texture.inputs['Vector'], texcoord.outputs['Normal'])
+    links.new(diffuse.inputs['Color'], texture.outputs['Color'])
+    links.new(output.inputs['Surface'], diffuse.outputs['BSDF'])
+    global rod_material
+    rod_material = mat
 
 def set_axis_color(ob, name):
     ob.active_material = bpy.data.materials.new(name="AxisMaterial.%s" % name)
@@ -149,7 +174,7 @@ class RodState(object):
         scene.objects.link(self.centerline)
         # add bishop frames
         self.bishops = [ create_axis(i) for i in range(knots) ]
-        for i in range(0, knots, int(knots/4)):
+        for i in range(0, knots, int(knots/10)):
             self.bishops[i].hide = False
 
     def _compute_initial_bishop(self, pt1, pt2, theta):
@@ -220,8 +245,10 @@ class RodState(object):
 
 def init_scene():
     delete_object_by_name("Cube")
-    create_bevel_circle()
+    init_viewport_shading()
+    init_bevel_circle()
     init_axis_group()
+    init_texture_material("RodMaterial", "Checkerboard", "./textures/checkerboard.jpg")
     bpy.data.objects["BezierCircle"].hide = True
 
 def run_sim(data):
@@ -244,13 +271,12 @@ def save_blend(filename):
 
 def fake_data():
     intervals = np.arange(0, 6.28, 0.1)
-    # intervals = np.arange(0, 6.28, 1)
     knots = len(intervals)
     n_timesteps = 100
     n_rods = 1
     data = np.zeros(shape=[n_timesteps, n_rods, knots, 4], dtype=float)
     for t in range(n_timesteps):
-        data[t,0,:,:] = [ [ sin(x + simtime), x, x / 2.0, 0.0 ] for x in intervals ]
+        data[t,0,:,:] = [ [ sin(x + simtime), x, x / 2.0, x ] for x in intervals ]
         tick()
     global simtime
     simtime = 0

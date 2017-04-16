@@ -46,7 +46,7 @@ These functions assumes ElasticRod object with placeholders/tensors members.
 '''
 
 def _trimslices(tensor, dim = 0, margins = [1, 1]):
-    shape = tensor.shape.as_list()
+    shape = tensor.get_shape().as_list()
     start = list([0] * len(shape))
     size = list(shape)
     start[dim] = margins[0]
@@ -74,7 +74,7 @@ def TFGetEdgeVector(xs):
 
 def TFGetEdgeLength(evec):
     norms = tf.norm(evec, axis=1)
-    return tf.reshape(norms, [evec.shape.as_list()[0]])
+    return tf.reshape(norms, [evec.get_shape().as_list()[0]])
 
 def TFGetVoronoiEdgeLength(enorms):
     en_i_1, en_i = _diffslices(enorms)
@@ -87,9 +87,9 @@ def TFGetCurvature(ev, enorms):
     en_i_1, en_i = _diffslices(enorms, 0)
     denominator1 = en_i_1 * en_i
     denominator2 = tf.reduce_sum(tf.multiply(e_i_1, e_i), 1, keep_dims=False)
-    print(denominator2.shape)
+    print("TFGetCurvature: {}".format(denominator2.get_shape()))
     denominator = (denominator1+denominator2)
-    shape3 = denominator.shape.as_list()
+    shape3 = denominator.get_shape().as_list()
     denominator = tf.reshape(denominator, [shape3[0],1])
     return 2 * tf.multiply(tf.cross(e_i_1, e_i), 1.0/(denominator))
 
@@ -100,6 +100,7 @@ def TFInitRod(rod):
     rod.fullrestvl = TFGetVoronoiEdgeLength(rod.restl)
     rod.innerrestvl = _trimslices(rod.fullrestvl, 0, [1, 1])
     rod.ks = TFGetCurvature(rod.evec, rod.restl)
+    return rod
 
 # For unit \alpha
 def TFGetEBend(rod):
@@ -135,4 +136,3 @@ def TFKineticD(rod):
     avexdot = 0.5 * (xdot_i_1 + xdot_i)
     sqnorm = tf.reduce_sum(tf.multiply(avexdot, avexdot), 1, keep_dims=False)
     return 0.5 * tf.reduce_sum(rod.restl * sqnorm)
-

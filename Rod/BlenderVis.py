@@ -97,7 +97,6 @@ def create_axis_dim(name):
         location = (0, 0, 0))
     ob = bpy.context.object
     ob.name = "axis.%s" % name
-    ob.show_name = True
     me = ob.data
     me.name = "axis.%s.mesh" % name
     if name == "x":
@@ -116,7 +115,6 @@ def create_axis_dim(name):
         location = (0, 0, 0))
     ob = bpy.context.object
     ob.name = "axis.%s.cone" % name
-    ob.show_name = True
     me = ob.data
     me.name = "axis.%s.cone.mesh" % name
     if name == "x":
@@ -141,11 +139,13 @@ def init_axis_group():
         scene.objects.unlink(bpy.data.objects["axis.%s" % axis])
         scene.objects.unlink(bpy.data.objects["axis.%s.cone" % axis])
 
-def create_axis(name):
+def create_frame(name):
     instance = bpy.data.objects.new("axis.%s" % name, None)
+    instance.show_name = True
     instance.dupli_type = "GROUP"
     instance.dupli_group = axis_group
     instance.hide = True
+    instance.empty_draw_size = 0.0
     scene.objects.link(instance)
     return instance
 
@@ -173,8 +173,9 @@ class RodState(object):
         self.centerline.data.materials.append(rod_material)
         scene.objects.link(self.centerline)
         # add bishop frames
-        self.bishops = [ create_axis(i) for i in range(knots) ]
-        for i in range(0, knots, int(knots/10)):
+        self.bishops = [ create_frame(i) for i in range(knots) ]
+        n_dis_step = 1 if knots < 10 else int(knots / 10)
+        for i in range(0, knots, n_dis_step):
             self.bishops[i].hide = False
 
     def _compute_initial_bishop(self, pt1, pt2, theta):
@@ -188,7 +189,8 @@ class RodState(object):
         segment1_dir = (pt1 - pt0).normalized()
         segment2_dir = (pt2 - pt1).normalized()
         axis = segment1_dir.cross(segment2_dir)
-        angle = acos(segment1_dir.dot(segment2_dir))
+        dot = max(-1.0, min(1.0, segment1_dir.dot(segment2_dir)))
+        angle = acos(dot)
         q_bend = mathutils.Quaternion(axis, angle)
         next_bishop = [ q_bend * d for d in bishop ]
         q_twist = mathutils.Quaternion(segment1_dir, theta)
@@ -253,7 +255,7 @@ def init_scene():
 
 def run_sim(data):
     n_timesteps, n_rods, n_centerpoints, n_dim = data.shape
-    radius = 0.1
+    radius = 0.02
 
     # init rods
     rods = [ RodState("rod-%d" % i, n_centerpoints, radius, "rod") for i in range(n_rods) ]
@@ -284,8 +286,8 @@ def fake_data():
 
 def option_parser():
     parser = OptionParser()
-    parser.add_option("-f", "--file", dest="filename",
-            help="write report to FILE", metavar="FILE")
+    parser.add_option("", "--simfile", dest="filename",
+            help="write report to FILE")
     parser.add_option("", "--bishop-frame", dest="bishop",
             help="render bishop frame", default=True)
 
@@ -304,7 +306,6 @@ if __name__ == "__main__":
     if options.filename is None:
         data = fake_data()
     else:
-        filename = sys.argv[1]
-        data = np.fromfile(filename, dtype=float)
+        data = np.load(options.filename)
 
     run_sim(data)

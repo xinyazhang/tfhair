@@ -18,12 +18,12 @@ def create_TFRod(n, xs_init=None, thetas_init=None):
     if xs_init is None:
         xs_init = tf.placeholder(tf.float32, shape=(n+1,3))
     else:
-        xs_init = tf.Variable(xs_init)
+        xs_init = tf.Variable(xs_init([n+1, 3]))
 
     if thetas_init is None:
         thetas_init = tf.placeholder(tf.float32, shape=(n))
     else:
-        thetas_init = tf.Variable(thetas_init, shape=(n))
+        thetas_init = tf.Variable(thetas_init([n]), shape=(n))
 
     restl = tf.placeholder(tf.float32, shape=[n])
     return ElasticRod.ElasticRod(xs_init, restl, thetas_init)

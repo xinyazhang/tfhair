@@ -4,6 +4,7 @@ import tensorflow as tf
 import test_V
 import test_T
 import test_L
+import test_C
 
 #sess = tf.InteractiveSession()
 #sess.run(tf.global_variables_initializer())
@@ -16,3 +17,4 @@ import test_L
 test_V.run()
 test_T.run()
 test_L.run()
+test_C.run()

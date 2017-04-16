@@ -87,7 +87,7 @@ def TFGetCurvature(ev, enorms):
     en_i_1, en_i = _diffslices(enorms, 0)
     denominator1 = en_i_1 * en_i
     denominator2 = tf.reduce_sum(tf.multiply(e_i_1, e_i), 1, keep_dims=False)
-    print("TFGetCurvature: {}".format(denominator2.get_shape()))
+    # print("TFGetCurvature: {}".format(denominator2.get_shape()))
     denominator = (denominator1+denominator2)
     shape3 = denominator.get_shape().as_list()
     denominator = tf.reshape(denominator, [shape3[0],1])

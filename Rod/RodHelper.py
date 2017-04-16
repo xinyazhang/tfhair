@@ -3,6 +3,7 @@
 import numpy as np
 import ElasticRod
 import tensorflow as tf
+import math
 
 def calculate_rest_length(xs):
     nvert = xs.shape[0]
@@ -14,26 +15,24 @@ def create_TFRod(n):
             tf.placeholder(tf.float32, shape=[n]),
             tf.placeholder(tf.float32, shape=[n]))
 
-def create_TFRod(n, xs_init=None, thetas_init=None):
-    if xs_init is None:
-        xs_init = tf.placeholder(tf.float32, shape=(n+1,3))
-    else:
-        xs_init = tf.Variable(xs_init([n+1, 3]))
+def create_TFRod_variable(n, xs_init, thetas_init, restl):
+    xs_init = tf.Variable(xs_init([n+1, 3]))
+    thetas_init = tf.Variable(thetas_init([n]))
+    restl = tf.constant(restl, dtype=tf.float32)
+    return ElasticRod.ElasticRod(xs_init, restl, thetas_init)
 
-    if thetas_init is None:
-        thetas_init = tf.placeholder(tf.float32, shape=(n))
-    else:
-        thetas_init = tf.Variable(thetas_init([n]), shape=(n))
-
-    restl = tf.placeholder(tf.float32, shape=[n])
+def create_TFRod_constant(n, xs_init, thetas_init, restl):
+    xs_init = tf.constant(xs_init, dtype=tf.float32)
+    thetas_init = tf.constant(thetas_init, dtype=tf.float32)
+    restl = tf.constant(restl, dtype=tf.float32)
     return ElasticRod.ElasticRod(xs_init, restl, thetas_init)
 
 class RodSaver():
 
-    def __init__(self, sess, feed_dict, save_as):
+    def __init__(self, sess, save_as, feed_dict=None):
         self.sess = sess
-        self.feed_dict = feed_dict
         self.dest = save_as
+        self.feed_dict = feed_dict
 
     def __enter__(self):
         self.rods = []
@@ -57,3 +56,32 @@ class RodSaver():
 
     def add_timestep(self, rods):
         self.rods.append(rods)
+
+class Trainer():
+
+    def __init__(self, sess, opt, loss, feed_dict=None,
+            max_iter=100000, epsilon=1e-9, display=1000):
+        self.sess = sess
+        self.opt = opt
+        self.loss = loss
+        self.feed_dict = feed_dict
+        self.max_iter = max_iter
+        self.epsilon = epsilon
+        self.display = 1000
+
+    def __enter__(self):
+        self.curr_iter = self.max_iter
+        for i in xrange(self.max_iter):
+            # display loss over iterations
+            if i % self.display == 0:
+                print "loss:", self.sess.run(self.loss, feed_dict=self.feed_dict)
+            # optimize loss metrics
+            self.sess.run(self.opt, feed_dict=self.feed_dict)
+            loss_value = self.sess.run(self.loss, feed_dict=self.feed_dict)
+            if math.fabs(loss_value) < self.epsilon:
+                self.curr_iter = i
+                break
+        return self
+
+    def __exit__(self, type, value, traceback):
+        pass

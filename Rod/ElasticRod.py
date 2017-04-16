@@ -138,6 +138,8 @@ def TFKineticD(rod):
     return 0.5 * tf.reduce_sum(rod.restl * sqnorm)
 
 # Calculate inextensibility constraints, i.e. rods non-stretchable
-def TFGetCLength(crod, nrod):
-    diff = crod.fullrestvl - nrod.fullrestvl
+def TFGetCLength(rod):
+    edges = TFGetEdgeVector(rod.xs)
+    norms = TFGetEdgeLength(edges)
+    diff = norms - rod.restl
     return tf.reduce_sum(tf.multiply(diff, diff), axis=None, keep_dims=False)

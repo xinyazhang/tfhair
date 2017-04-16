@@ -6,7 +6,7 @@ import RodHelper as helper
 import tensorflow as tf
 
 def Lagrangian(prod, crod, h):
-    return TFKineticI(prod, crod, h) - TFGetEBend(crod) + TFGetCLength(prod, crod)
+    return TFKineticI(prod, crod, h) - TFGetEBend(crod) + TFGetCLength(crod)
 
 def discrete_EulerLagrangian(L1, L2, var):
     d2L = tf.gradients(L1, var)[0]
@@ -24,8 +24,9 @@ def run():
     thetas = np.zeros(shape=[n], dtype=np.float32)
     xs = np.array([ [-1,0,0], [0,0,0], [1,0,0], [2,0,0] ])
     xh = np.array([ [ h,0,0], [h,0,0], [h,0,0], [h,0,0] ])
+    perturb = np.array([ [ h,0,0], [0,0,0], [0,0,0], [0,0,0] ])
     xsbar = xs + xh
-    xgt = xs + 2 * xh
+    xinit = xsbar + perturb
     rl = helper.calculate_rest_length(xs)
 
     # instantiate rods of different timestep
@@ -42,15 +43,14 @@ def run():
 
     with tf.Session() as sess:
         sess.run(tf.global_variables_initializer())
-        sess.run(nrod.xs.assign((xsbar+xgt)/2))
+        sess.run(nrod.xs.assign(xinit))
 
         with helper.Trainer(sess, train_op, loss) as t:
             converged = sess.run(nrod.xs)
-            loss_value = sess.run(loss)
-            print 'Converged after {} iterations at:\n{}'.format(t.curr_iter, converged)
-            print 'Ground truth:\n{}'.format(xgt)
-            print 'Delta:\n{}'.format(xgt - converged)
-            print 'loss:\n{}'.format(converged)
+            new_rl = helper.calculate_rest_length(converged)
+            print 'Expected: {}'.format(rl)
+            print 'Actual  : {}'.format(new_rl)
+            print 'Delta: {}'.format(rl - new_rl)
 
         with helper.RodSaver(sess, "rods_output.npy") as saver:
             saver.add_timestep([prod])    # add timestep i-1

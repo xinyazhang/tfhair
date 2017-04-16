@@ -74,13 +74,14 @@ class Trainer():
         for i in xrange(self.max_iter):
             # display loss over iterations
             if i % self.display == 0:
-                print "loss:", self.sess.run(self.loss, feed_dict=self.feed_dict)
+                print "--> loss at epoch %d:" % i, self.sess.run(self.loss, feed_dict=self.feed_dict)
             # optimize loss metrics
             self.sess.run(self.opt, feed_dict=self.feed_dict)
             loss_value = self.sess.run(self.loss, feed_dict=self.feed_dict)
             if math.fabs(loss_value) < self.epsilon:
                 self.curr_iter = i
-                break
+                print "--> loss at epoch %d:" % i, self.sess.run(self.loss, feed_dict=self.feed_dict)
+                return self
         return self
 
     def __exit__(self, type, value, traceback):

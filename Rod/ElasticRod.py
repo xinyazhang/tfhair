@@ -34,6 +34,8 @@ class ElasticRod:
         self.xs = verts
         self.restl = restlength
         self.thetas = thetas
+        self.multiplier = tf.Variable(tf.zeros(verts.get_shape()),
+            dtype=tf.float32)  # constraint multipler
 
     '''
     Convention of additional tensors
@@ -139,7 +141,7 @@ def TFKineticD(rod):
 
 # Calculate inextensibility constraints, i.e. rods non-stretchable
 def TFGetCLength(rod):
-    edges = TFGetEdgeVector(rod.xs)
-    norms = TFGetEdgeLength(edges)
-    diff = norms - rod.restl
-    return tf.reduce_sum(tf.multiply(diff, diff), axis=None, keep_dims=False)
+    norms = TFGetEdgeLength(rod.evec)
+    norms_sq = tf.reduce_sum(norms * norms)
+    restl_sq = tf.reduce_sum(rod.restl * rod.restl)
+    return norms_sq - restl_sq

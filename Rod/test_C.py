@@ -6,11 +6,11 @@ import RodHelper as helper
 import tensorflow as tf
 
 def Lagrangian(prod, crod, h):
-    return TFKineticI(prod, crod, h) - TFGetEBend(crod) + TFGetCLength(crod)
+    return TFKineticI(prod, crod, h) - TFGetEBend(crod) - crod.multiplier * TFGetCLength(crod)
 
 def discrete_EulerLagrangian(L1, L2, var):
-    d2L = tf.gradients(L1, var)[0]
-    d1L = tf.gradients(L2, var)[0]
+    d2L = reduce(tf.add, filter(lambda x: x is not None, tf.gradients(L1, var)))
+    d1L = reduce(tf.add, filter(lambda x: x is not None, tf.gradients(L2, var)))
     dL = d2L + d1L
     return tf.reduce_sum(tf.multiply(dL, dL), axis=None, keep_dims=False)
 
@@ -18,7 +18,7 @@ def run():
     # global settings
     n = 3
     h = 1.0 / 1024.0
-    learning_rate = 1e-3
+    learning_rate = 1e-5
 
     # initial values
     thetas = np.zeros(shape=[n], dtype=np.float32)
@@ -33,12 +33,12 @@ def run():
     prod = helper.create_TFRod_constant(n, xs, thetas, rl)
     crod = helper.create_TFRod_constant(n, xsbar, thetas, rl)
     nrod = helper.create_TFRod_variable(n, tf.zeros, tf.zeros, rl)
-    prod, crod, nrod = list(map(TFInitRod, [prod, crod, nrod]))
+    prod, crod, nrod = map(TFInitRod, [prod, crod, nrod])
 
     # optimizer
     L1 = Lagrangian(prod, crod, h)
     L2 = Lagrangian(crod, nrod, h)
-    loss = discrete_EulerLagrangian(L1, L2, crod.xs)
+    loss = discrete_EulerLagrangian(L1, L2, [crod.xs, crod.multiplier])
     train_op = tf.train.AdamOptimizer(learning_rate).minimize(loss)
 
     with tf.Session() as sess:

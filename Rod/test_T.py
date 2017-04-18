@@ -63,3 +63,5 @@ def run():
     # print(rodthis.fullrestvl.eval(feed_dict=inputdict))
     # print(rodthis.xdots.eval(feed_dict=inputdict))
 
+if __name__ == '__main__':
+    run()

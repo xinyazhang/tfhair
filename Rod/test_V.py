@@ -96,6 +96,8 @@ def run_twist():
         [1,-1,0]
         ])
     rl = helper.calculate_rest_length(xs)
+    refd1s, refd2s = helper.calculate_referene_directions(xs, np.array([0,1,0]))
+    '''
     refd1s = np.array([
         [0,1,0],
     #    [1,0,0],
@@ -104,6 +106,9 @@ def run_twist():
         [0,0,1],
     #    [0,0,1],
         ])
+    '''
+    print('refd1s {}'.format(refd1s))
+    print('refd2s {}'.format(refd2s))
     thetas = np.array([0, 2 * pi])
 
     with tf.Session() as sess:
@@ -111,8 +116,8 @@ def run_twist():
         inputdict = { rod.xs : xs,
                 rod.restl : rl,
                 rod.thetas : thetas,
-                rod.refd1s : refd1s,
-                rod.refd2s : refd2s}
+                rod.refd1s : refd1s[:-1],
+                rod.refd2s : refd2s[:-1]}
         print('Twist %f' % ETwist.eval(feed_dict=inputdict))
         print('Force on thetas {}'.format(TForce.eval(feed_dict=inputdict)))
         print('Force on xs {}'.format(XForce.eval(feed_dict=inputdict)))
@@ -120,3 +125,6 @@ def run_twist():
 def run():
     run_bend()
     run_twist()
+
+if __name__ == '__main__':
+    run()

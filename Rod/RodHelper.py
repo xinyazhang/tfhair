@@ -133,6 +133,8 @@ class Trainer():
         self.sess = sess
         self.opt = opt
         self.loss = loss
+        self.scalar_loss = tf.reduce_sum(loss, axis=None, keep_dims=False)
+        print('scalar_loss shape {}'.format(self.scalar_loss.get_shape()))
         self.feed_dict = feed_dict
         self.max_iter = max_iter
         self.epsilon = epsilon
@@ -146,10 +148,10 @@ class Trainer():
                 print "--> loss at epoch %d:" % i, self.sess.run(self.loss, feed_dict=self.feed_dict)
             # optimize loss metrics
             self.sess.run(self.opt, feed_dict=self.feed_dict)
-            loss_value = self.sess.run(self.loss, feed_dict=self.feed_dict)
+            loss_value = self.sess.run(self.scalar_loss, feed_dict=self.feed_dict)
             if math.fabs(loss_value) < self.epsilon:
                 self.curr_iter = i
-                print "--> loss at epoch %d:" % i, self.sess.run(self.loss, feed_dict=self.feed_dict)
+                print("--> loss at epoch {}: {}".format(i, loss_value))
                 return self
         return self
 

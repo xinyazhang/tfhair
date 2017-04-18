@@ -34,8 +34,10 @@ class ElasticRod:
         self.xs = verts
         self.restl = restlength
         self.thetas = thetas
-        self.multiplier = tf.Variable(tf.zeros(verts.get_shape()),
-            dtype=tf.float32)  # constraint multipler
+        '''
+        self.multiplier should be initialized outside
+        '''
+        #self.multiplier = tf.Variable(tf.zeros(verts.get_shape()), dtype=tf.float32)  # constraint multipler
 
     '''
     Convention of additional tensors

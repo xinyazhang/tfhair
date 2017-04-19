@@ -124,6 +124,11 @@ def TFInitRod(rod):
     rod.ks = TFGetCurvature(rod.evec, rod.restl)
     return rod
 
+def TFGetLengthConstaintFunction(rod):
+    sqlen = _dot(rod.evec, rod.evec)
+    sqrest = rod.restl * rod.restl;
+    return sqlen - sqrest
+
 # For unit \alpha
 def TFGetEBend(rod):
     #return tf.reduce_sum(tf.multiply(tf.norm(rod.ks, ord=2, axis=1), 1.0/rod.restvl))

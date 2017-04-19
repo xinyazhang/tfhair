@@ -85,8 +85,8 @@ def _diffslices(norms, dim = 0):
 def _normalize(evec):
     norm = tf.sqrt(_dot(evec, evec))
     norm = tf.stack([norm], _lastdim(norm)+1)
-    print(evec.get_shape())
-    print(norm.get_shape())
+    #print(evec.get_shape())
+    #print(norm.get_shape())
     return evec/norm
 
 def TFGetEdgeVector(xs):
@@ -134,6 +134,9 @@ def TFParallelTransportQuaternion(prod, crod):
     axes = tf.cross(prod.tan, crod.tan)
     cosines = _dot(prod.tan, crod.tan)
     halfconsines = tf.sqrt((cosines + 1)/2.0)
+    halfconsines = tf.stack([halfconsines], _lastdim(halfconsines)+1) # pad one dimension
+    #print(axes.get_shape())
+    #print(halfconsines.get_shape())
     bcd = tf.multiply(axes, 0.5/halfconsines)
     return halfconsines, bcd
 
@@ -145,17 +148,22 @@ def TFPropogateRefDs(prod, crod):
     lastdim = _lastdim(bcd)
     margins = [[0,2],[1,1],[2,0]]
     b,c,d = map(lambda margin: _trimslices(bcd, _lastdim(bcd), margin), margins)
+    # print(a.get_shape())
+    # print(b.get_shape())
     aa, bb, cc, dd = a*a, b*b, c*c, d*d
     bc, ad, ac, ab, bd, cd = b*c, a*d, a*c, a*b, b*d, c*d
-    row1 = tf.stack([aa+bb-cc-dd, 2*(bc+ad), 2*(bd-ac)], axis=lastdim + 1)
-    row2 = tf.stack([2*(bc-ad), aa+cc-bb-dd, 2*(cd+ab)], axis=lastdim + 1)
-    row3 = tf.stack([2*(bd+ac), 2*(cd-ab), aa+dd-bb-cc], axis=lastdim + 1)
-    R = tf.stack([row1, row2, row3], axis=lastdim + 2)
+    # print('aa shape {}'.format(aa.get_shape()))
+    row1 = tf.concat([aa+bb-cc-dd, 2*(bc+ad), 2*(bd-ac)], axis=lastdim)
+    # print('row1 shape {}, lastdim {}'.format(row1.get_shape(), lastdim))
+    row2 = tf.concat([2*(bc-ad), aa+cc-bb-dd, 2*(cd+ab)], axis=lastdim)
+    row3 = tf.concat([2*(bd+ac), 2*(cd-ab), aa+dd-bb-cc], axis=lastdim)
+    R = tf.stack([row1, row2, row3], axis=lastdim)
+    shape = prod.refd1s.get_shape()
+    # print('prod.refd1s shape {}'.format(shape))
     refd1s = tf.stack([prod.refd1s], axis=_lastdim(prod.refd1s)+1)
     refd2s = tf.stack([prod.refd2s], axis=_lastdim(prod.refd2s)+1)
-    shape = prod.refd1s.get_shape()
-    crod.refd1s = tf.matmul(R, refd1s).reshape(shape)
-    crod.refd2s = tf.matmul(R, refd2s).reshape(shape)
+    crod.refd1s = tf.reshape(tf.matmul(R, refd1s), shape)
+    crod.refd2s = tf.reshape(tf.matmul(R, refd2s), shape)
     return crod
 
 # For unit \beta

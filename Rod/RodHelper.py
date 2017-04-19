@@ -41,8 +41,8 @@ def calculate_kb(e):
     kb_numerator = 2 * np.cross(e_i_1, e_i)
     kb_denominator = np.multiply(norms[:-1], norms[1:]) + np.einsum('ij,ij->i', e_i_1, e_i)
     kb_denominator.reshape([kb_denominator.shape[0],1])
-    print('kb_numerator {}'.format(kb_numerator))
-    print('kb_denominator {}'.format(kb_denominator))
+    # print('kb_numerator {}'.format(kb_numerator))
+    # print('kb_denominator {}'.format(kb_denominator))
     return divide_vecarray_by_scalararray(kb_numerator, kb_denominator)
 
 def calculate_parallel_transport(eprev, ethis):
@@ -59,20 +59,20 @@ def calculate_referene_directions(xs, initd1):
     e = xs[1:,:] - xs[0:-1,:]
     ebar = normalize(e)
     kb = calculate_kb(e)
-    print('edge {}'.format(e))
-    print('kb {}'.format(kb))
+    # print('edge {}'.format(e))
+    # print('kb {}'.format(kb))
     prevd1 = initd1
     prevd2 = np.cross(e[0], initd1)
-    print('initd1 {}'.format(prevd1))
-    print('initd2 {}'.format(prevd2))
+    # print('initd1 {}'.format(prevd1))
+    # print('initd2 {}'.format(prevd2))
     d1arr = [prevd1]
     d2arr = [prevd2]
     for i in range(1, e.shape[0]):
         P = calculate_parallel_transport(ebar[i-1], ebar[i])
         d1 = P.dot(prevd1)
         d2 = P.dot(prevd2)
-        print('d1[{}]: {}'.format(i, d1))
-        print('d2[{}]: {}'.format(i, d2))
+        # print('d1[{}]: {}'.format(i, d1))
+        # print('d2[{}]: {}'.format(i, d2))
         d1arr.append(normalize(d1))
         d2arr.append(normalize(d2))
         prevd1 = d1

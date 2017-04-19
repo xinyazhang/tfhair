@@ -76,7 +76,8 @@ def run():
     print('Ground truth: ', xgt)
     with tf.Session() as sess:
         sess.run(tf.global_variables_initializer())
-        sess.run(nrod.xs.assign((xsbar+xgt)/2))
+        #sess.run(nrod.xs.assign((xsbar+xgt)/2))
+        sess.run(nrod.xs.assign(xgt))
         '''
         print('Initial value: ', sess.run(nrod.xs))
         print('Initial loss: ', sess.run(loss, feed_dict=inputdict))

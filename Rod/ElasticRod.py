@@ -11,6 +11,8 @@ This is a very flexible class. It may store:
     3. The placeholders and tensors to optimizing computational graph.
 '''
 
+_epsilon = 1e-8
+
 class ElasticRod:
     '''
     Convention of essential ElasticRod members
@@ -24,6 +26,7 @@ class ElasticRod:
     thetas = None
     restl = None
 
+    tan = None
     refd1s = None
     refd2s = None
 
@@ -49,6 +52,13 @@ class ElasticRod:
 These functions assumes ElasticRod object with placeholders/tensors members.
 '''
 
+def _lastdim(tensor):
+    return len(tensor.get_shape().as_list()) - 1
+
+def _dot(tensor1, tensor2):
+    dim = _lastdim(tensor1)
+    return tf.reduce_sum(tf.multiply(tensor1, tensor2), dim, keep_dims=False)
+
 def _trimslices(tensor, dim = 0, margins = [1, 1]):
     shape = tensor.get_shape().as_list()
     start = list([0] * len(shape))
@@ -71,6 +81,13 @@ def _diffslices(norms, dim = 0):
     en_i_1 = _trimslices(norms, dim, [0, 1])
     en_i = _trimslices(norms, dim, [1, 0])
     return en_i_1, en_i
+
+def _normalize(evec):
+    norm = tf.sqrt(_dot(evec, evec))
+    norm = tf.stack([norm], _lastdim(norm)+1)
+    print(evec.get_shape())
+    print(norm.get_shape())
+    return evec/norm
 
 def TFGetEdgeVector(xs):
     x_i_1, x_i = _diffslices(xs, 0)
@@ -100,6 +117,7 @@ def TFGetCurvature(ev, enorms):
 # Calculate Intermediate Tensors (e.g. Curvatures) from Input Placeholders
 def TFInitRod(rod):
     rod.evec = TFGetEdgeVector(rod.xs)
+    rod.tan = _normalize(rod.evec)
 #    rod.enorms = TFGetEdgeLength(rod.evec)
     rod.fullrestvl = TFGetVoronoiEdgeLength(rod.restl)
     rod.innerrestvl = _trimslices(rod.fullrestvl, 0, [1, 1])
@@ -112,6 +130,34 @@ def TFGetEBend(rod):
     sqnorm = tf.reduce_sum(tf.multiply(rod.ks, rod.ks), 1, keep_dims=False)
     return tf.reduce_sum(tf.multiply(sqnorm, 1.0/rod.innerrestvl))
 
+def TFParallelTransportQuaternion(prod, crod):
+    axes = tf.cross(prod.tan, crod.tan)
+    cosines = _dot(prod.tan, crod.tan)
+    halfconsines = tf.sqrt((cosines + 1)/2.0)
+    bcd = tf.multiply(axes, 0.5/halfconsines)
+    return halfconsines, bcd
+
+def TFPropogateRefDs(prod, crod):
+    '''
+    Calculate the current reference directions from the previous time frame.
+    '''
+    a, bcd = TFParallelTransportQuaternion(prod, crod)
+    lastdim = _lastdim(bcd)
+    margins = [[0,2],[1,1],[2,0]]
+    b,c,d = map(lambda margin: _trimslices(bcd, _lastdim(bcd), margin), margins)
+    aa, bb, cc, dd = a*a, b*b, c*c, d*d
+    bc, ad, ac, ab, bd, cd = b*c, a*d, a*c, a*b, b*d, c*d
+    row1 = tf.stack([aa+bb-cc-dd, 2*(bc+ad), 2*(bd-ac)], axis=lastdim + 1)
+    row2 = tf.stack([2*(bc-ad), aa+cc-bb-dd, 2*(cd+ab)], axis=lastdim + 1)
+    row3 = tf.stack([2*(bd+ac), 2*(cd-ab), aa+dd-bb-cc], axis=lastdim + 1)
+    R = tf.stack([row1, row2, row3], axis=lastdim + 2)
+    refd1s = tf.stack([prod.refd1s], axis=_lastdim(prod.refd1s)+1)
+    refd2s = tf.stack([prod.refd2s], axis=_lastdim(prod.refd2s)+1)
+    shape = prod.refd1s.get_shape()
+    crod.refd1s = tf.matmul(R, refd1s).reshape(shape)
+    crod.refd2s = tf.matmul(R, refd2s).reshape(shape)
+    return crod
+
 # For unit \beta
 # This should be a function w.r.t. thetas and xs
 # which means difftheta also depends on xs
@@ -121,12 +167,6 @@ def TFGetETwist(rod):
     rod.mbars = tf.reduce_sum(tf.multiply(refd1primes, rod.refd2s), 1, keep_dims=False)
     difftheta = rod.thetas - rod.mbars
     return tf.reduce_sum(tf.multiply(difftheta*difftheta, 1.0/rod.innerrestvl))
-
-def TFPropogateRDs(rodprev, rodnow):
-    '''
-    Calculate the current reference directions from the previous time frame.
-    '''
-    pass #TODO
 
 # Calculate Kinetic Energy Indirectly, For unit \rho
 def TFKineticI(rodnow, rodnext, h):

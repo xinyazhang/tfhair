@@ -8,7 +8,7 @@ import math
 from math import pi
 
 def run():
-    n = 2
+    n = 3
     rod = helper.create_TFRod(n)
     rod.refd1s = tf.placeholder(tf.float32, shape=[n,3])
     rod.refd2s = tf.placeholder(tf.float32, shape=[n,3])
@@ -20,19 +20,21 @@ def run():
     xs = np.array([
         [0,0.0,0],
         [1,0,0],
-        [1,-1,0]
+        [1,-1,0],
+        [1,-2,0]
         ])
     nxs = np.array([
         [0,0.0,0],
         [0.866025403784438647, 0.500000000000000000,0],
-        [1.36602540378443865, -0.366025403784438647,0]
+        [1.36602540378443865, -0.366025403784438647,0],
+        [1.86602540378443865, -1.23205080756887729, 0]
         ])
     rl = helper.calculate_rest_length(xs)
     refd1s, refd2s = helper.calculate_referene_directions(xs, np.array([0,1,0]))
     expnrefd1s, expnrefd2s = helper.calculate_referene_directions(nxs, np.array([-0.500000000000000000, 0.866025403784438647,0]))
     # print('refd1s {}'.format(refd1s))
     # print('refd2s {}'.format(refd2s))
-    thetas = np.array([0, 0])
+    thetas = np.array([0, 0, 0])
 
     with tf.Session() as sess:
         tf.global_variables_initializer()

@@ -49,7 +49,7 @@ def calculate_parallel_transport(eprev, ethis):
     vector = np.cross(eprev, ethis)
     norm = math.fabs(calculate_norms(vector))
     if norm < 1e-9:
-        return numpy.identity(3)
+        return np.identity(3)
     axis = vector
     cosine = np.dot(eprev, ethis)
     theta = math.acos(cosine)

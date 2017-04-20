@@ -83,8 +83,8 @@ def run_bend():
 def run_twist():
     n = 2
     rod = helper.create_TFRod(n)
-    rod.refd1s = tf.placeholder(tf.float32, shape=[n-1,3])
-    rod.refd2s = tf.placeholder(tf.float32, shape=[n-1,3])
+    rod.refd1s = tf.placeholder(tf.float32, shape=[n,3])
+    rod.refd2s = tf.placeholder(tf.float32, shape=[n,3])
     TFInitRod(rod)
     ETwist = TFGetETwist(rod)
     XForce = tf.gradients(-ETwist, rod.xs)[0]
@@ -110,14 +110,38 @@ def run_twist():
     print('refd1s {}'.format(refd1s))
     print('refd2s {}'.format(refd2s))
     thetas = np.array([0, 2 * pi])
+    xs2 = np.array([
+        [0,0.0,0],
+        [1,0,0],
+        [2,0,0]
+        ])
+    rl2 = helper.calculate_rest_length(xs2)
+    refd1s2, refd2s2 = helper.calculate_referene_directions(xs2, np.array([0,1,0]))
 
     with tf.Session() as sess:
         tf.global_variables_initializer()
         inputdict = { rod.xs : xs,
                 rod.restl : rl,
                 rod.thetas : thetas,
-                rod.refd1s : refd1s[:-1],
-                rod.refd2s : refd2s[:-1]}
+                rod.refd1s : refd1s,
+                rod.refd2s : refd2s}
+        print('Twist %f' % ETwist.eval(feed_dict=inputdict))
+        print('Force on thetas {}'.format(TForce.eval(feed_dict=inputdict)))
+        print('Force on xs {}'.format(XForce.eval(feed_dict=inputdict)))
+        inputdict = { rod.xs : xs2,
+                rod.restl : rl2,
+                rod.thetas : thetas,
+                rod.refd1s : refd1s2,
+                rod.refd2s : refd2s2}
+        print('Twist %f' % ETwist.eval(feed_dict=inputdict))
+        print('Force on thetas {}'.format(TForce.eval(feed_dict=inputdict)))
+        print('Force on xs {}'.format(XForce.eval(feed_dict=inputdict)))
+        thetas3 = np.array([2 * pi, 2 * pi])
+        inputdict = { rod.xs : xs2,
+                rod.restl : rl2,
+                rod.thetas : thetas3,
+                rod.refd1s : refd1s2,
+                rod.refd2s : refd2s2}
         print('Twist %f' % ETwist.eval(feed_dict=inputdict))
         print('Force on thetas {}'.format(TForce.eval(feed_dict=inputdict)))
         print('Force on xs {}'.format(XForce.eval(feed_dict=inputdict)))

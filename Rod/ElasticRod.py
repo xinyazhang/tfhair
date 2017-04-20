@@ -176,10 +176,12 @@ def TFPropogateRefDs(prod, crod):
 # which means difftheta also depends on xs
 def TFGetETwist(rod):
     #theta_i_1, theta_i = _diffslices(rod.thetas)
-    refd1primes = tf.cross(rod.ks, rod.refd1s)
-    rod.mbars = tf.reduce_sum(tf.multiply(refd1primes, rod.refd2s), 1, keep_dims=False)
-    difftheta = rod.thetas - rod.mbars
-    return tf.reduce_sum(tf.multiply(difftheta*difftheta, 1.0/rod.innerrestvl))
+    refd1primes = tf.cross(rod.ks, _trimslices(rod.refd1s, margins=[0,1]))
+    rod.mbars = _trimslices(_dot(refd1primes, rod.refd2s), margins=[0,1])
+    theta_i_1, theta_i = _diffslices(rod.thetas)
+    difftheta = theta_i - theta_i_1
+    deltatheta = difftheta - rod.mbars
+    return tf.reduce_sum(tf.multiply(deltatheta*deltatheta, 1.0/rod.innerrestvl))
 
 # Calculate Kinetic Energy Indirectly, For unit \rho
 def TFKineticI(rodnow, rodnext, h):

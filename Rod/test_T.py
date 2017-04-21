@@ -1,4 +1,7 @@
 #!/usr/bin/env python2
+'''
+Kinetic Energy
+'''
 
 import numpy as np
 from ElasticRod import *

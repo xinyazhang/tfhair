@@ -1,4 +1,7 @@
 #!/usr/bin/env python2
+'''
+Propogation of Twisting
+'''
 
 import numpy as np
 from ElasticRod import *

@@ -13,6 +13,58 @@ This is a very flexible class. It may store:
 
 _epsilon = 1e-8
 
+def _lastdim(tensor):
+    return len(tensor.get_shape().as_list()) - 1
+
+def _dot(tensor1, tensor2):
+    dim = _lastdim(tensor1)
+    return tf.reduce_sum(tf.multiply(tensor1, tensor2), dim, keep_dims=False)
+
+def _trimslices(tensor, dim = 0, margins = [1, 1]):
+    shape = tensor.get_shape().as_list()
+    start = list([0] * len(shape))
+    size = list(shape)
+    start[dim] = margins[0]
+    size[dim] -= margins[1] + margins[0]
+    return tf.slice(tensor, start, size)
+
+def _diffslices(norms, dim = 0):
+    en_i_1 = _trimslices(norms, dim, [0, 1])
+    en_i = _trimslices(norms, dim, [1, 0])
+    return en_i_1, en_i
+
+def _normalize(evec):
+    norm = tf.sqrt(_dot(evec, evec))
+    norm = tf.stack([norm], _lastdim(norm)+1)
+    #print(evec.get_shape())
+    #print(norm.get_shape())
+    return evec/norm
+
+def TFGetEdgeVector(xs):
+    x_i_1, x_i = _diffslices(xs, 0)
+    return x_i - x_i_1
+
+def TFGetEdgeLength(evec):
+    norms = tf.norm(evec, axis=1)
+    return tf.reshape(norms, [evec.get_shape().as_list()[0]])
+
+def TFGetVoronoiEdgeLength(enorms):
+    en_i_1, en_i = _diffslices(enorms)
+    en_i_1 = tf.pad(enorms, [[0, 1]], 'CONSTANT')
+    en_i = tf.pad(enorms, [[1, 0]], 'CONSTANT')
+    return (en_i_1 + en_i) / 2
+
+def TFGetCurvature(ev, enorms):
+    e_i_1, e_i = _diffslices(ev, 0)
+    en_i_1, en_i = _diffslices(enorms, 0)
+    denominator1 = en_i_1 * en_i
+    denominator2 = tf.reduce_sum(tf.multiply(e_i_1, e_i), 1, keep_dims=False)
+    # print("TFGetCurvature: {}".format(denominator2.get_shape()))
+    denominator = (denominator1+denominator2)
+    shape3 = denominator.get_shape().as_list()
+    denominator = tf.reshape(denominator, [shape3[0],1])
+    return 2 * tf.multiply(tf.cross(e_i_1, e_i), 1.0/(denominator))
+
 class ElasticRod:
     '''
     Convention of essential ElasticRod members
@@ -52,68 +104,6 @@ class ElasticRod:
 These functions assumes ElasticRod object with placeholders/tensors members.
 '''
 
-def _lastdim(tensor):
-    return len(tensor.get_shape().as_list()) - 1
-
-def _dot(tensor1, tensor2):
-    dim = _lastdim(tensor1)
-    return tf.reduce_sum(tf.multiply(tensor1, tensor2), dim, keep_dims=False)
-
-def _trimslices(tensor, dim = 0, margins = [1, 1]):
-    shape = tensor.get_shape().as_list()
-    start = list([0] * len(shape))
-    size = list(shape)
-    start[dim] = margins[0]
-    size[dim] -= margins[1] + margins[0]
-    return tf.slice(tensor, start, size)
-
-def _diffslices(norms, dim = 0):
-    '''
-    shape = norms.shape.as_list()
-    start = list([0] * len(shape))
-    end = list(shape)
-    end[dim] = shape[dim] - 1
-    en_i_1 = tf.slice(norms, start, end)
-    start[dim] = 1
-    end[dim] = -1
-    en_i = tf.slice(norms, start, end)
-    '''
-    en_i_1 = _trimslices(norms, dim, [0, 1])
-    en_i = _trimslices(norms, dim, [1, 0])
-    return en_i_1, en_i
-
-def _normalize(evec):
-    norm = tf.sqrt(_dot(evec, evec))
-    norm = tf.stack([norm], _lastdim(norm)+1)
-    #print(evec.get_shape())
-    #print(norm.get_shape())
-    return evec/norm
-
-def TFGetEdgeVector(xs):
-    x_i_1, x_i = _diffslices(xs, 0)
-    return x_i - x_i_1
-
-def TFGetEdgeLength(evec):
-    norms = tf.norm(evec, axis=1)
-    return tf.reshape(norms, [evec.get_shape().as_list()[0]])
-
-def TFGetVoronoiEdgeLength(enorms):
-    en_i_1, en_i = _diffslices(enorms)
-    en_i_1 = tf.pad(enorms, [[0, 1]], 'CONSTANT')
-    en_i = tf.pad(enorms, [[1, 0]], 'CONSTANT')
-    return (en_i_1 + en_i) / 2
-
-def TFGetCurvature(ev, enorms):
-    e_i_1, e_i = _diffslices(ev, 0)
-    en_i_1, en_i = _diffslices(enorms, 0)
-    denominator1 = en_i_1 * en_i
-    denominator2 = tf.reduce_sum(tf.multiply(e_i_1, e_i), 1, keep_dims=False)
-    # print("TFGetCurvature: {}".format(denominator2.get_shape()))
-    denominator = (denominator1+denominator2)
-    shape3 = denominator.get_shape().as_list()
-    denominator = tf.reshape(denominator, [shape3[0],1])
-    return 2 * tf.multiply(tf.cross(e_i_1, e_i), 1.0/(denominator))
-
 # Calculate Intermediate Tensors (e.g. Curvatures) from Input Placeholders
 def TFInitRod(rod):
     rod.evec = TFGetEdgeVector(rod.xs)
@@ -128,6 +118,10 @@ def TFGetLengthConstaintFunction(rod):
     sqlen = _dot(rod.evec, rod.evec)
     sqrest = rod.restl * rod.restl;
     return sqlen - sqrest
+
+def TFGetEConstaint(rod):
+    diff =  TFGetLengthConstaintFunction(rod)
+    return tf.reduce_sum(_dot(diff, diff))
 
 # For unit \alpha
 def TFGetEBend(rod):
@@ -195,17 +189,3 @@ def TFKineticD(rod):
     avexdot = 0.5 * (xdot_i_1 + xdot_i)
     sqnorm = tf.reduce_sum(tf.multiply(avexdot, avexdot), 1, keep_dims=False)
     return 0.5 * tf.reduce_sum(rod.restl * sqnorm)
-
-# # Calculate inextensibility constraints, i.e. rods non-stretchable
-# def TFGetCLength(rod):
-#     norms = TFGetEdgeLength(rod.evec)
-#     norms_sq = tf.reduce_sum(norms * norms)
-#     restl_sq = tf.reduce_sum(rod.restl * rod.restl)
-#     return norms_sq - restl_sq
-
-# Calculate inextensibility constraints, i.e. rods non-stretchable
-def TFGetCLength(rod):
-    # perhaps we should set a weight for inextensibility constraint?
-    norms = TFGetEdgeLength(rod.evec)
-    diff = norms - rod.restl
-    return tf.reduce_sum(diff * diff)

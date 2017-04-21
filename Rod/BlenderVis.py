@@ -1,4 +1,4 @@
-#!blender -P
+#!/usr/bin/env blender -P
 
 
 """
@@ -16,14 +16,17 @@ import bpy
 import os, sys
 import mathutils
 import numpy as np
+from queue import Queue
 from optparse import OptionParser
 from math import sin, cos, acos, atan2, pi
+
+sys.path.append(os.path.abspath("./"))
+import BlenderUtil
 
 scene = bpy.context.scene
 scene.render.engine = 'CYCLES'
 
 # simulation settings
-simtime = 0
 timestep = 0.1
 fps = scene.render.fps
 keyframe = 0
@@ -36,11 +39,12 @@ axis_group = None
 # render settings
 rod_material = None
 
-def tick():
-    global simtime, keyframe
-    simtime += timestep
-    keyframe = int(simtime * fps)
-    scene.frame_set(keyframe)
+rods = None
+data = Queue()      # queue for storing keyframe data, i.e. rod states
+
+def compute_keyframe(frame):
+    simtime = timestep * frame
+    return int(simtime * fps)
 
 def delete_object_by_name(name):
     if name in bpy.data.objects:
@@ -254,58 +258,53 @@ def init_scene():
     bpy.data.objects["BezierCircle"].hide = True
 
 def run_sim(data):
-    n_timesteps, n_rods, n_centerpoints, n_dim = data.shape
+    n_rods, n_centerpoints, n_dim = data.shape
     radius = 0.02
 
     # init rods
-    rods = [ RodState("rod-%d" % i, n_centerpoints, radius, "rod") for i in range(n_rods) ]
-    for t in range(n_timesteps):
-        time_slice = data[t,:,:,:]
-        for i, rod in enumerate(rods):
-            xs = time_slice[i,:,0:3]
-            ts = time_slice[i,:,3]
-            rod.update(xs, ts)
-        tick()
-    scene.frame_set(0)
+    global rods
+    if rods is None:
+        rods = [ RodState("rod-%d" % i, n_centerpoints, radius, "rod") for i in range(n_rods) ]
+
+    # update rods
+    for i, rod in enumerate(rods):
+        xs = data[i,:,0:3]
+        ts = data[i,:,3]
+        rod.update(xs, ts)
 
 def save_blend(filename):
     bpy.ops.wm.save_as_mainfile(filepath=filename)
 
-def fake_data():
-    intervals = np.arange(0, 6.28, 0.1)
-    knots = len(intervals)
-    n_timesteps = 100
-    n_rods = 1
-    data = np.zeros(shape=[n_timesteps, n_rods, knots, 4], dtype=float)
-    for t in range(n_timesteps):
-        data[t,0,:,:] = [ [ sin(x + simtime), x, x / 2.0, x ] for x in intervals ]
-        tick()
-    global simtime
-    simtime = 0
-    return data
+def callback_finish(message):
+    receiver.stop()
+    scene.frame_set(0)
 
-def option_parser():
-    parser = OptionParser()
-    parser.add_option("", "--simfile", dest="filename",
-            help="write report to FILE")
-    parser.add_option("", "--bishop-frame", dest="bishop",
-            help="render bishop frame", default=True)
+def callback_frame(message):
+    global keyframe
+    frame = int(message)
+    keyframe = compute_keyframe(frame)
 
-    index = 0
-    for i, arg in enumerate(sys.argv):
-        if "BlenderVis.py" in arg:
-            index = i
-            break
-    (options, args) = parser.parse_args(sys.argv[index:])
-    return options
+def callback_update(message):
+    filename = message.strip()
+    data.put((keyframe, filename))
+
+callbacks = {
+    "finish": callback_finish,
+    "frame": callback_frame,
+    "update": callback_update
+}
+
+def callback_load_keyframes(scene):
+    global keyframe
+    while not data.empty():
+        keyframe, filename = data.get()
+        run_sim(np.load(filename))
+        data.task_done()
+        # print("load file %s at keyframe %d" % (filename, keyframe))
 
 if __name__ == "__main__":
     init_scene()
-    options = option_parser()
+    bpy.app.handlers.frame_change_post.append(callback_load_keyframes)
 
-    if options.filename is None:
-        data = fake_data()
-    else:
-        data = np.load(options.filename)
-
-    run_sim(data)
+    receiver = BlenderUtil.Receiver(callbacks)
+    receiver.receive()

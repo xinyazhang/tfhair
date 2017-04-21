@@ -1,11 +1,10 @@
 #!/usr/bin/env python2
 
 import tensorflow as tf
+import test_PT
 import test_V
 import test_T
-import test_L
-import test_C
-import test_PT
+import test_M
 
 #sess = tf.InteractiveSession()
 #sess.run(tf.global_variables_initializer())
@@ -18,6 +17,5 @@ import test_PT
 test_PT.run()
 test_V.run()
 test_T.run()
-test_L.run()
-test_C.run()
+test_M.run()
 

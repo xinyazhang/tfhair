@@ -1,4 +1,7 @@
 #!/usr/bin/env python2
+'''
+Potential Energy
+'''
 
 import numpy as np
 from ElasticRod import *

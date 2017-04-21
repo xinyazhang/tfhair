@@ -1,5 +1,7 @@
 #!/usr/bin/env python2
 
+import os
+import shutil
 import numpy as np
 import ElasticRod
 import tensorflow as tf
@@ -80,9 +82,11 @@ def calculate_referene_directions(xs, initd1):
     return np.array(d1arr), np.array(d2arr)
 
 def create_TFRod(n):
-    return ElasticRod.ElasticRod(tf.placeholder(tf.float32, shape=[n+1, 3]),
+    rod = ElasticRod.ElasticRod(tf.placeholder(tf.float32, shape=[n+1, 3]),
             tf.placeholder(tf.float32, shape=[n]),
             tf.placeholder(tf.float32, shape=[n]))
+    rod.xdots = tf.placeholder(tf.float32, shape=[n+1, 3])
+    return rod
 
 def create_TFRod_variable(n, xs_init, thetas_init, restl):
     xs_init = tf.Variable(xs_init([n+1, 3]))
@@ -98,33 +102,35 @@ def create_TFRod_constant(n, xs_init, thetas_init, restl):
 
 class RodSaver():
 
-    def __init__(self, sess, save_as, feed_dict=None):
-        self.sess = sess
-        self.dest = save_as
-        self.feed_dict = feed_dict
+    def __init__(self, directory):
+        self.directory = os.path.abspath(directory)
+        self.frame = 0
+        # clean dest directory
+        if os.path.exists(self.directory):
+            shutil.rmtree(self.directory)
+        os.makedirs(self.directory)
 
     def __enter__(self):
-        self.rods = []
         return self
 
     def __exit__(self, type, value, traceback):
-        # compute matrix size
-        n_timesteps = len(self.rods)
-        if n_timesteps == 0: return
-        n_rods = len(self.rods[0])
-        if n_rods == 0: return
-        n_knots = self.rods[0][0].xs[0].get_shape()[0] + 1
+        self.close()
 
+    def close(self):
+        pass
+
+    def add_timestep(self, cpos, theta):
         # save all rods into matrix
-        results = np.zeros(shape=(n_timesteps, n_rods, n_knots, 4), dtype=np.float32)
-        for i in xrange(n_timesteps):
-            for j in xrange(n_rods):
-                results[i,j,:  ,0:3] = self.sess.run(self.rods[i][j].xs, feed_dict=self.feed_dict)
-                results[i,j,:-1,  3] = self.sess.run(self.rods[i][j].thetas, feed_dict=self.feed_dict)
-        np.save(self.dest, results)
+        n_rods = len(cpos)
+        n_knots = cpos[0].shape[0]
 
-    def add_timestep(self, rods):
-        self.rods.append(rods)
+        results = np.zeros(shape=(n_rods, n_knots, 4), dtype=np.float32)
+        for j in xrange(n_rods):
+            results[j,:,0:3] = cpos[j]
+            results[j,:,  3] = theta[j] #np.reshape(theta[j], (4))
+        filename = os.path.join(self.directory, "%d.npy" % self.frame)
+        np.save(filename, results)
+        self.frame += 1
 
 class Trainer():
 

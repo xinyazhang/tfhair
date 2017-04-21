@@ -1,12 +1,10 @@
-#!/usr/bin/env python2
-
 import os
 import shutil
 import math
 import numpy as np
 import tensorflow as tf
-import ElasticRod
 
+import ElasticRod
 import BlenderUtil
 
 class RodSaver(object):

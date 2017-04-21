@@ -1,3 +1,4 @@
+import math
 import tensorflow as tf
 
 '''
@@ -22,6 +23,9 @@ class ElasticRod:
     omega: [n, 3] tensor
     '''
 
+    density = 1e3
+    radius = 0.01
+
     def __init__(self, cpos, cvel, theta, omega, restl):
         # primary variables for phase update
         self.cpos = cpos
@@ -32,6 +36,7 @@ class ElasticRod:
         self.restl = restl
         self.restl_multiplier = tf.Variable(
             tf.zeros(self.restl.get_shape(), dtype=tf.float32))   # use Newton's method
+        self.clength = None # length constraints
         # auxiliary variables to help calculation
         self.evec = self._compute_edge_vector(self.cpos)
         self.enorms = self._compute_edge_norm(self.evec)
@@ -39,6 +44,9 @@ class ElasticRod:
         self.kappa = self._compute_curvature(self.evec, self.enorms)
         self.fullrestvl = self._compute_full_restvl(self.restl)
         self.innerrestvl = self._compute_inner_restvl(self.fullrestvl)
+        self.mass = self._compute_mass_matrix(self.radius, self.density, self.fullrestvl)
+        # next rod state
+        self.nrod = None
 
     def _compute_edge_vector(self, cpos):
         return cpos[1:,:] - cpos[0:-1,:]
@@ -47,8 +55,8 @@ class ElasticRod:
         return tf.norm(evec, axis=1)
 
     def _compute_full_restvl(self, restl):
-        en_i = tf.pad(restl, [[0, 0], [1, 0]], "CONSTANT")
-        en_i_1 = tf.pad(restl, [[0, 0], [0, 1]], "CONSTANT")
+        en_i = tf.pad(restl, [[1, 0]], "CONSTANT")
+        en_i_1 = tf.pad(restl, [[0, 1]], "CONSTANT")
         return (en_i + en_i_1) / 2.0
 
     def _compute_inner_restvl(self, fullrestvl):
@@ -67,21 +75,33 @@ class ElasticRod:
     def _compute_tangent(self, evec, enorms):
         return evec / enorms
 
+    def _compute_mass_matrix(self, radius, density, fullrestvl):
+        mass = []
+        dim = fullrestvl.get_shape().as_list()[0]
+        for i in xrange(dim):
+            m = density * math.pi * radius * radius * fullrestvl[i]
+            mass.append(m)
+            mass.append(m)
+            mass.append(m)
+        return tf.stack(mass)
+
     def _compute_bend_force(self):
         sqnorm = tf.reduce_sum(tf.multiply(self.kappa, self.kappa), 1, keep_dims=False)
         bend = tf.reduce_sum(tf.multiply(sqnorm, 1.0/self.innerrestvl))
         return -tf.gradients(bend, self.cpos)[0]
 
     def _compute_length_constraint(self, nrod):
-        # TODO: This should be called on nrod, since we want
-        # primarily nrod to satisfy length constraints
         sq1 = tf.tensordot(nrod.restl, nrod.restl, axes=1)
         sq2 = tf.tensordot(nrod.enorms, nrod.enorms, axes=1)
         return sq1 - sq2
 
-    def solve_length_constraint(self, nrod, sess, feeds):
-        clength = self._compute_length_constraint(nrod)
+    def resolve_length_constraint(self, sess, feeds):
         # TODO: use Newton's method to optimize lagrange multipliers
+        pass
+
+    def init_length_constraint(self):
+        assert self.nrod is not None
+        self.clength = self._compute_length_constraint(self.nrod)
 
     def update_cpos(self, h):
         return self.cpos + self.cvel * h
@@ -93,8 +113,10 @@ class ElasticRod:
         return tf.zeros(self.cvel.get_shape(), dtype=tf.float32)
         '''
         # TODO: add lagrange multiplier here to cvel update
-        return self.cvel + h * self._compute_bend_force()
-        # + self.restl_multiplier * ...
+        bend_force = tf.reshape(self._compute_bend_force(), self.mass.get_shape())
+        return self.cvel \
+            + h * tf.tensordot(bend_force, self.mass, axes=1)
+            # + self.restl_multiplier * ...
 
     def update_theta(self, h):
         # TODO: This is a placeholder before we actually
@@ -106,6 +128,16 @@ class ElasticRod:
         # implemented velocity update
         return tf.zeros(self.omega.get_shape(), dtype=tf.float32)
 
+    def next_state(self, h):
+        if self.nrod is None:
+            self.nrod = ElasticRod(
+                self.update_cpos(h),
+                self.update_cvel(h),
+                self.update_theta(h),
+                self.update_omega(h),
+                self.restl)
+        return self.nrod
+
     def dump(self, sess, feeds, name="rod"):
         print "{rod} configuration".format(rod=name)
         print "-" * 80
@@ -116,7 +148,9 @@ class ElasticRod:
         print "{rod}.evec:\n{value}".format(rod=name, value=sess.run(self.evec, feed_dict=feeds))
         print "{rod}.enorms: {value}".format(rod=name, value=sess.run(self.enorms, feed_dict=feeds))
         print "{rod}.kappa:\n{value}".format(rod=name, value=sess.run(self.kappa, feed_dict=feeds))
+        print "{rod}.restl: {value}".format(rod=name, value=sess.run(self.restl, feed_dict=feeds))
         print "{rod}.fullrestvl: {value}".format(rod=name, value=sess.run(self.fullrestvl, feed_dict=feeds))
         print "{rod}.innerrestvl: {value}".format(rod=name, value=sess.run(self.innerrestvl, feed_dict=feeds))
+        print "{rod}.mass:\n{value}".format(rod=name, value=sess.run(self.mass, feed_dict=feeds))
         print "-" * 80
         return self

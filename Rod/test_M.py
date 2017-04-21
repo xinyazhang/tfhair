@@ -10,6 +10,26 @@ import tensorflow as tf
 import math
 from math import pi
 
+def run_with_bc(n, h, rho, icond, path):
+    irod = helper.create_TFRod(n)
+
+    orod = irod.CalcNextRod(h)
+    saver = helper.RodSaver(path)
+    with tf.Session() as sess:
+        for frame in range(720):
+            #inputdict = {irod.xs:xs, irod.restl:rl, irod.thetas:thetas, irod.xdots:xdots, irod:omegas:omegas}
+            inputdict = helper.create_dict([irod], [icond])
+            # print(inputdict)
+            paddedthetas = np.append(icond.thetas, 0.0)
+            saver.add_timestep([icond.xs], [paddedthetas])
+            xs, xdots, thetas, omegas = sess.run([orod.xs, orod.xdots,
+                orod.thetas, orod.omegas], feed_dict=inputdict)
+            icond.xs = xs
+            icond.xdots = xdots
+            icond.thetas = thetas
+            icond.omegas = omegas
+    saver.close()
+
 def run_test1():
     '''
     Test 1: bending force only
@@ -17,11 +37,6 @@ def run_test1():
     n = 3
     h = 1.0/1024.0
     rho = 1.0
-
-    irod = helper.create_TFRod(n)
-    TFInitRod(irod)
-    EBend = TFGetEBend(irod)
-    Force = tf.gradients(-EBend, irod.xs)[0]
 
     xs = np.array([
         [-1,0,0],
@@ -35,19 +50,15 @@ def run_test1():
         [0,0,0],
         [0,0,0],
         ])
-    rl = helper.calculate_rest_length(xs)
     thetas = np.zeros(shape=[n], dtype=np.float32)
-    paddedthetas = np.zeros(shape=[n+1], dtype=np.float32)
-
-    nxs = irod.xs + h * irod.xdots
-    ndots = irod.xdots + h * Force #/ (rl * rho)
-    saver = helper.RodSaver('/tmp/tftest1')
-    for frame in range(720):
-        with tf.Session() as sess:
-            inputdict = {irod.xs:xs, irod.restl:rl, irod.thetas:thetas, irod.xdots:xdots}
-            saver.add_timestep([xs], [paddedthetas])
-            xs, xdots = sess.run([nxs, ndots], feed_dict=inputdict)
-    saver.close()
+    omegas = np.zeros(shape=[n], dtype=np.float32)
+    icond = helper.create_BCRod(xs=xs,
+            xdots=xdots,
+            thetas=thetas,
+            omegas=omegas,
+            initd1=np.array([0,1,0])
+            )
+    run_with_bc(n, h, rho, icond, '/tmp/tftest1')
 
 def run_test2():
     '''
@@ -56,11 +67,6 @@ def run_test2():
     n = 3
     h = 1.0/1024.0
     rho = 1.0
-
-    irod = helper.create_TFRod(n)
-    TFInitRod(irod)
-    E = TFGetEBend(irod)
-    XForce = tf.gradients(-E, [irod.xs])[0]
 
     xs = np.array([
         [-1,0,0],
@@ -74,19 +80,15 @@ def run_test2():
         [1,10,0],
         [1,10,0],
         ])
-    rl = helper.calculate_rest_length(xs)
     thetas = np.zeros(shape=[n], dtype=np.float32)
-    paddedthetas = np.zeros(shape=[n+1], dtype=np.float32)
-
-    nxs = irod.xs + h * irod.xdots
-    ndots = irod.xdots + h * XForce #/ (rl * rho)
-    saver = helper.RodSaver('/tmp/tftest2')
-    for frame in range(720):
-        with tf.Session() as sess:
-            inputdict = {irod.xs:xs, irod.restl:rl, irod.thetas:thetas, irod.xdots:xdots}
-            saver.add_timestep([xs], [paddedthetas])
-            xs, xdots = sess.run([nxs, ndots], feed_dict=inputdict)
-    saver.close()
+    omegas = np.zeros(shape=[n], dtype=np.float32)
+    icond = helper.create_BCRod(xs=xs,
+            xdots=xdots,
+            thetas=thetas,
+            omegas=omegas,
+            initd1=np.array([0,1,0])
+            )
+    run_with_bc(n, h, rho, icond, '/tmp/tftest2')
 
 def run():
     run_test1()

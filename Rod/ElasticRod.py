@@ -40,12 +40,15 @@ def _normalize(evec):
     #print(norm.get_shape())
     return evec/norm
 
+def _paddim(tensor):
+    return tf.stack([tensor], axis=_lastdim(tensor)+1)
+
 def TFGetEdgeVector(xs):
     x_i_1, x_i = _diffslices(xs, 0)
     return x_i - x_i_1
 
 def TFGetEdgeLength(evec):
-    norms = tf.norm(evec, axis=1)
+    norms = tf.norm(evec, axis=_lastdim(evec))
     return tf.reshape(norms, [evec.get_shape().as_list()[0]])
 
 def TFGetVoronoiEdgeLength(enorms):
@@ -65,73 +68,15 @@ def TFGetCurvature(ev, enorms):
     denominator = tf.reshape(denominator, [shape3[0],1])
     return 2 * tf.multiply(tf.cross(e_i_1, e_i), 1.0/(denominator))
 
-class ElasticRod:
-    '''
-    Convention of essential ElasticRod members
-    xs: 2D (n+2) x 3 tensor, for vertex positions
-    thetas: 1D n+1 tensor, for twisting on edges w.r.t. reference frame (aka Bishop frame)
-            Note, we assumes piece-wise constant twisting
-    refd1s, refd2s: 2D (n+1) x 3 tensor, to store reference directions
-    '''
-
-    xs = None
-    thetas = None
-    restl = None
-
-    tan = None
-    refd1s = None
-    refd2s = None
-
-    c = None # Translation
-    q = None # Rotation quaternion
-
-    def __init__(self, verts, restlength, thetas):
-        self.xs = verts
-        self.restl = restlength
-        self.thetas = thetas
-        '''
-        self.multiplier should be initialized outside
-        '''
-        #self.multiplier = tf.Variable(tf.zeros(verts.get_shape()), dtype=tf.float32)  # constraint multipler
-
-    '''
-    Convention of additional tensors
-    evec: 2D (n+1) x 3 tensor, for edge vectors (evec_i = x_{i+1} - x_i)
-    ls: 1D n tensor with real elements, for voronoi region of each vertex (besides the first vertex)
-    '''
-
-'''
-These functions assumes ElasticRod object with placeholders/tensors members.
-'''
-
-# Calculate Intermediate Tensors (e.g. Curvatures) from Input Placeholders
-def TFInitRod(rod):
-    rod.evec = TFGetEdgeVector(rod.xs)
-    rod.tan = _normalize(rod.evec)
-#    rod.enorms = TFGetEdgeLength(rod.evec)
-    rod.fullrestvl = TFGetVoronoiEdgeLength(rod.restl)
-    rod.innerrestvl = _trimslices(rod.fullrestvl, 0, [1, 1])
-    rod.ks = TFGetCurvature(rod.evec, rod.restl)
-    return rod
-
 def TFGetLengthConstaintFunction(rod):
     sqlen = _dot(rod.evec, rod.evec)
     sqrest = rod.restl * rod.restl;
     return sqlen - sqrest
 
-def TFGetEConstaint(rod):
-    diff =  TFGetLengthConstaintFunction(rod)
-    return tf.reduce_sum(_dot(diff, diff))
-
 # For unit \alpha
-def TFGetEBend(rod):
-    #return tf.reduce_sum(tf.multiply(tf.norm(rod.ks, ord=2, axis=1), 1.0/rod.restvl))
-    sqnorm = tf.reduce_sum(tf.multiply(rod.ks, rod.ks), 1, keep_dims=False)
-    return tf.reduce_sum(tf.multiply(sqnorm, 1.0/rod.innerrestvl))
-
 def TFParallelTransportQuaternion(prod, crod):
-    axes = tf.cross(prod.tan, crod.tan)
-    cosines = _dot(prod.tan, crod.tan)
+    axes = tf.cross(prod.tans, crod.tans)
+    cosines = _dot(prod.tans, crod.tans)
     halfconsines = tf.sqrt((cosines + 1)/2.0)
     halfconsines = tf.stack([halfconsines], _lastdim(halfconsines)+1) # pad one dimension
     #print(axes.get_shape())
@@ -165,17 +110,141 @@ def TFPropogateRefDs(prod, crod):
     crod.refd2s = tf.reshape(tf.matmul(R, refd2s), shape)
     return crod
 
-# For unit \beta
-# This should be a function w.r.t. thetas and xs
-# which means difftheta also depends on xs
+class ElasticRod:
+
+    '''
+    Convention of essential ElasticRod members
+    xs, xdots: 2D (n+1) x 3 tensor, for vertex positions/velocities
+    restl: 1D (n) x 3 tensor
+    thetas, omegas: 1D n tensor, for twisting/angular velocity on edges w.r.t. reference frame (aka Bishop frame)
+            Note, we assumes PIECE-WISE CONSTANT twisting
+    tans, refd1s, refd2s: 2D n x 3 tensor, to store reference directions
+    '''
+
+    xs = None
+    thetas = None
+    restl = None
+    omegas = None
+
+    tans = None
+    refd1s = None
+    refd2s = None
+
+    rho = 1.0
+
+    c = None # Translation
+    q = None # Rotation quaternion
+
+    '''
+    Convention of additional tensors
+    evec: 2D (n+1) x 3 tensor, for edge vectors (evec_i = x_{i+1} - x_i)
+    ls: 1D n tensor with real elements, for voronoi region of each vertex (besides the first vertex)
+    '''
+
+    @staticmethod
+    def CreateInputRod(n, rho = 1.0):
+        return ElasticRod(
+                xs=tf.placeholder(tf.float32, shape=[n+1, 3], name='xs'),
+                restl=tf.placeholder(tf.float32, shape=[n], name='restl'),
+                xdots=tf.placeholder(tf.float32, shape=[n+1, 3], name='xdots'),
+                thetas=tf.placeholder(tf.float32, shape=[n], name='thetas'),
+                omegas=tf.placeholder(tf.float32, shape=[n], name='omegas'),
+                refd1s=tf.placeholder(tf.float32, shape=[n, 3], name='refd1s'),
+                refd2s=tf.placeholder(tf.float32, shape=[n, 3], name='refd2s'),
+                rho=rho)
+
+    def __init__(self, xs, restl, xdots, thetas, omegas, refd1s = None, refd2s = None, rho = 1.0):
+        self.xs = xs
+        self.restl = restl
+        self.xdots = xdots
+        self.thetas = thetas
+        self.omegas = omegas
+        self.refd1s = refd1s
+        self.refd2s = refd2s
+        self.rho = rho
+
+    def CalcNextRod(self, h):
+        self.InitTF()
+        E = self.GetEBendTF() + self.GetETwistTF()
+        XForce, TForce = tf.gradients(-E, [self.xs, self.thetas])
+        nxs = self.xs + h * self.xdots
+        ndots = self.xdots + h * XForce / _paddim(self.fullrestvl * self.rho)
+        nthetas = self.thetas + h * self.omegas
+        nomegas = self.omegas + h * TForce / (self.restl * self.rho)
+        nrod = ElasticRod(
+                xs=nxs,
+                restl=self.restl,
+                xdots=ndots,
+                thetas=nthetas,
+                omegas=nomegas,
+                rho=self.rho)
+        nrod.InitTF() # FIXME(optimization): nrod only needs tans to TFPropogateRefDs
+        if (not self.refd1s is None) and (not self.refd2s is None):
+            TFPropogateRefDs(self, nrod)
+        return nrod
+
+    '''
+    Functions with 'TF' suffix assume ElasticRod object members are tensors.
+    '''
+    def InitTF(rod):
+        '''
+        Calculate Intermediate Tensors (e.g. Curvatures) from Input Placeholders
+        This is mandantory for Energy Terms
+        '''
+        rod.evec = TFGetEdgeVector(rod.xs)
+        rod.tans = _normalize(rod.evec)
+        rod.fullrestvl = TFGetVoronoiEdgeLength(rod.restl)
+        rod.innerrestvl = _trimslices(rod.fullrestvl, _lastdim(rod.fullrestvl) - 1, [1, 1])
+        rod.ks = TFGetCurvature(rod.evec, rod.restl)
+        return rod
+
+    def GetEConstaintTF(rod):
+        diff =  TFGetLengthConstaintFunction(rod)
+        return tf.reduce_sum(_dot(diff, diff))
+
+    def GetEBendTF(rod):
+        sqnorm = _dot(rod.ks, rod.ks)
+        return tf.reduce_sum(tf.multiply(sqnorm, 1.0/rod.innerrestvl))
+
+    def GetETwistTF(rod):
+        '''
+        For unit beta
+        This should be a function w.r.t. thetas and xs
+        which means difftheta also depends on xs
+        '''
+        #theta_i_1, theta_i = _diffslices(rod.thetas)
+        refd1primes = tf.cross(rod.ks, _trimslices(rod.refd1s, margins=[0,1]))
+        rod.mbars = _dot(refd1primes, _trimslices(rod.refd2s, margins=[0,1]))
+        theta_i_1, theta_i = _diffslices(rod.thetas)
+        difftheta = theta_i - theta_i_1
+        deltatheta = difftheta - rod.mbars
+        return tf.reduce_sum(tf.multiply(deltatheta*deltatheta, 1.0/rod.innerrestvl))
+
+    def TFKineticI(rodnow, rodnext, h):
+        rodnow.xdots = 1/h * (rodnext.xs - rodnow.xs)
+        return TFKineticD(rodnow)
+
+    def TFKineticD(rod):
+        '''
+        Calculate Kinetic Energy Directly from rod.xdots, For unit \rho
+        '''
+        xdot = rod.xdots
+        xdot_i_1, xdot_i = _diffslices(xdot, 0)
+        avexdot = 0.5 * (xdot_i_1 + xdot_i)
+        sqnorm = tf.reduce_sum(tf.multiply(avexdot, avexdot), 1, keep_dims=False)
+        return 0.5 * tf.reduce_sum(rod.restl * sqnorm)
+
+def TFInitRod(rod):
+    return rod.InitTF()
+
+def TFGetEConstaint(rod):
+    return rod.GetEConstaintTF()
+
+def TFGetEBend(rod):
+    return rod.GetEBendTF()
+
 def TFGetETwist(rod):
-    #theta_i_1, theta_i = _diffslices(rod.thetas)
-    refd1primes = tf.cross(rod.ks, _trimslices(rod.refd1s, margins=[0,1]))
-    rod.mbars = _trimslices(_dot(refd1primes, rod.refd2s), margins=[0,1])
-    theta_i_1, theta_i = _diffslices(rod.thetas)
-    difftheta = theta_i - theta_i_1
-    deltatheta = difftheta - rod.mbars
-    return tf.reduce_sum(tf.multiply(deltatheta*deltatheta, 1.0/rod.innerrestvl))
+    return rod.GetETwistTF()
 
 # Calculate Kinetic Energy Indirectly, For unit \rho
 def TFKineticI(rodnow, rodnext, h):
@@ -189,3 +258,4 @@ def TFKineticD(rod):
     avexdot = 0.5 * (xdot_i_1 + xdot_i)
     sqnorm = tf.reduce_sum(tf.multiply(avexdot, avexdot), 1, keep_dims=False)
     return 0.5 * tf.reduce_sum(rod.restl * sqnorm)
+

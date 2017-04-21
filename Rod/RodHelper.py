@@ -82,11 +82,35 @@ def calculate_referene_directions(xs, initd1):
     return np.array(d1arr), np.array(d2arr)
 
 def create_TFRod(n):
-    rod = ElasticRod.ElasticRod(tf.placeholder(tf.float32, shape=[n+1, 3]),
-            tf.placeholder(tf.float32, shape=[n]),
-            tf.placeholder(tf.float32, shape=[n]))
-    rod.xdots = tf.placeholder(tf.float32, shape=[n+1, 3])
+    return ElasticRod.ElasticRod.CreateInputRod(n)
+
+def create_BCRod(xs, xdots, thetas, omegas, initd1):
+    rl = calculate_rest_length(xs)
+    rod = ElasticRod.ElasticRod(xs=xs, restl=rl, xdots=xdots, thetas=thetas, omegas=omegas)
+    rod.refd1s, rod.refd2s = calculate_referene_directions(xs, initd1)
     return rod
+
+def create_dict(irods, drods):
+    '''
+    Create a dict by assiging placeholders in irod with values in drod
+    '''
+    nelem = len(irods)
+    tups = []
+    for i in range(nelem):
+        irod = irods[i]
+        drod = drods[i]
+        tups.append((irod.xs, drod.xs))
+        tups.append((irod.restl, drod.restl))
+        tups.append((irod.xdots, drod.xdots))
+        tups.append((irod.thetas, drod.thetas))
+        tups.append((irod.omegas, drod.omegas))
+        # tups.append((irod.rho, drod.rho))
+        if not irod.refd1s is None:
+            tups.append((irod.refd1s, drod.refd1s))
+        if not irod.refd2s is None:
+            tups.append((irod.refd2s, drod.refd2s))
+
+    return dict(tups)
 
 class RodSaver():
 

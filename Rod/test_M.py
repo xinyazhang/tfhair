@@ -11,9 +11,13 @@ import math
 from math import pi
 
 def run_with_bc(n, h, rho, icond, path):
+    '''
+    Run the simulation with given boundary conditions (icond)
+    '''
     irod = helper.create_TFRod(n)
 
     orod = irod.CalcNextRod(h)
+    pfe = TFGetEConstaint(irod)
     saver = helper.RodSaver(path)
     with tf.Session() as sess:
         for frame in range(720):
@@ -24,6 +28,9 @@ def run_with_bc(n, h, rho, icond, path):
             saver.add_timestep([icond.xs], [paddedthetas])
             xs, xdots, thetas, omegas = sess.run([orod.xs, orod.xdots,
                 orod.thetas, orod.omegas], feed_dict=inputdict)
+            # print(pfe.eval(feed_dict=inputdict))
+            # print("thetas {}".format(thetas))
+            # print("xdots {}".format(xdots))
             icond.xs = xs
             icond.xdots = xdots
             icond.thetas = thetas
@@ -90,9 +97,71 @@ def run_test2():
             )
     run_with_bc(n, h, rho, icond, '/tmp/tftest2')
 
+def run_test3():
+    '''
+    Test 3: twisting
+    '''
+    n = 3
+    h = 1.0/1024.0 * 4
+    rho = 1.0
+
+    xs = np.array([
+        [-1,0,0],
+        [0,0,0],
+        [1,0,0],
+        [2,0,0],
+        ])
+    xdots = np.array([
+        [0,0,0],
+        [0,0,0],
+        [0,0,0],
+        [0,0,0],
+        ])
+    thetas = np.array([0, pi, -pi])
+    omegas = np.zeros(shape=[n], dtype=np.float32)
+    icond = helper.create_BCRod(xs=xs,
+            xdots=xdots,
+            thetas=thetas,
+            omegas=omegas,
+            initd1=np.array([0,1,0])
+            )
+    run_with_bc(n, h, rho, icond, '/tmp/tftest3')
+
+def run_test4():
+    '''
+    Test 4: twisting with bending
+    '''
+    n = 2
+    h = 1.0/1024.0 * 4
+    rho = 1.0
+
+    xs = np.array([
+        [0,0,0],
+        [1,0,0],
+        [1,-1,0],
+        ])
+    xdots = np.array([
+        [0,0,0],
+        [0,0,0],
+        [0,0,0],
+        ])
+    thetas = np.array([0, 2 * pi])
+    omegas = np.zeros(shape=[n], dtype=np.float32)
+    icond = helper.create_BCRod(xs=xs,
+            xdots=xdots,
+            thetas=thetas,
+            omegas=omegas,
+            initd1=np.array([0,1,0])
+            )
+    run_with_bc(n, h, rho, icond, '/tmp/tftest4')
+
 def run():
+    run_test4()
+    return
     run_test1()
     run_test2()
+    run_test3()
+    run_test4()
 
 if __name__ == '__main__':
     run()

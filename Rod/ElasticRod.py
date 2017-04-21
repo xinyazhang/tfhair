@@ -12,6 +12,7 @@ This is a very flexible class. It may store:
 '''
 
 _epsilon = 1e-8
+_stiff = 1
 
 def _lastdim(tensor):
     return len(tensor.get_shape().as_list()) - 1
@@ -131,6 +132,8 @@ class ElasticRod:
     refd2s = None
 
     rho = 1.0
+    alpha = 1.0
+    beta = 0.1
 
     c = None # Translation
     q = None # Rotation quaternion
@@ -165,7 +168,7 @@ class ElasticRod:
 
     def CalcNextRod(self, h):
         self.InitTF()
-        E = self.GetEBendTF() + self.GetETwistTF()
+        E = self.alpha * self.GetEBendTF() + self.beta * self.GetETwistTF() + _stiff * self.GetEConstaintTF()
         XForce, TForce = tf.gradients(-E, [self.xs, self.thetas])
         nxs = self.xs + h * self.xdots
         ndots = self.xdots + h * XForce / _paddim(self.fullrestvl * self.rho)
@@ -199,7 +202,7 @@ class ElasticRod:
         return rod
 
     def GetEConstaintTF(rod):
-        diff =  TFGetLengthConstaintFunction(rod)
+        diff = TFGetLengthConstaintFunction(rod)
         return tf.reduce_sum(_dot(diff, diff))
 
     def GetEBendTF(rod):

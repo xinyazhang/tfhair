@@ -9,9 +9,11 @@ class Sender(object):
     def send_update(self, frame, filename):
         print("BLENDER FRAME: %d" % frame)
         print("BLENDER UPDATE: %s" % filename)
+        sys.stdout.flush()
 
     def send_finish(self):
         print("BLENDER FINISH")
+        sys.stdout.flush()
 
 class Receiver(object):
 

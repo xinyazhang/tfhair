@@ -24,18 +24,22 @@ class ElasticRod:
     omega: [n, 3] tensor
     '''
 
-    def __init__(self, cpos, cvel, theta, omega):
+    def __init__(self, cpos, cvel, theta, omega, restl):
         # primary variables for phase update
         self.cpos = cpos
         self.cvel = cvel
         self.theta = theta
         self.omega = omega
+        # constraints
+        self.restl = restl
+        self.restl_multiplier = tf.Variable(
+            tf.zeros(self.restl.get_shape(), dtype=tf.float32))   # use Newton's method
         # auxiliary variables to help calculation
         self.evec = self._compute_edge_vector(self.cpos)
         self.enorms = self._compute_edge_norm(self.evec)
         self.tan = self._compute_tangent(self.evec, self.enorms)
         self.kappa = self._compute_curvature(self.evec, self.enorms)
-        self.fullrestvl = self._compute_full_restvl(self.enorms)
+        self.fullrestvl = self._compute_full_restvl(self.restl)
         self.innerrestvl = self._compute_inner_restvl(self.fullrestvl)
 
     def _compute_edge_vector(self, cpos):
@@ -44,9 +48,9 @@ class ElasticRod:
     def _compute_edge_norm(self, evec):
         return tf.norm(evec, axis=1)
 
-    def _compute_full_restvl(self, enorms):
-        en_i = tf.pad(enorms, [[1, 0]], "CONSTANT")
-        en_i_1 = tf.pad(enorms, [[0, 1]], "CONSTANT")
+    def _compute_full_restvl(self, restl):
+        en_i = tf.pad(restl, [[0, 0], [1, 0]], "CONSTANT")
+        en_i_1 = tf.pad(restl, [[0, 0], [0, 1]], "CONSTANT")
         return (en_i + en_i_1) / 2.0
 
     def _compute_inner_restvl(self, fullrestvl):
@@ -57,7 +61,6 @@ class ElasticRod:
         en_i_1, en_i = enorms[:-1], enorms[1:]
         denominator1 = en_i_1 * en_i
         denominator2 = tf.reduce_sum(tf.multiply(e_i_1, e_i), 1, keep_dims=False)
-        # print("TFGetCurvature: {}".format(denominator2.get_shape()))
         denominator = (denominator1+denominator2)
         shape3 = denominator.get_shape().as_list()
         denominator = tf.reshape(denominator, [shape3[0],1])
@@ -71,6 +74,17 @@ class ElasticRod:
         bend = tf.reduce_sum(tf.multiply(sqnorm, 1.0/self.innerrestvl))
         return -tf.gradients(bend, self.cpos)[0]
 
+    def _compute_length_constraint(self, nrod):
+        # TODO: This should be called on nrod, since we want
+        # primarily nrod to satisfy length constraints
+        sq1 = tf.tensordot(nrod.restl, nrod.restl, axes=1)
+        sq2 = tf.tensordot(nrod.enorms, nrod.enorms, axes=1)
+        return sq1 - sq2
+
+    def solve_length_constraint(self, nrod, sess, feeds):
+        clength = self._compute_length_constraint(nrod)
+        # TODO: use Newton's method to optimize lagrange multipliers
+
     def update_cpos(self, h):
         return self.cpos + self.cvel * h
 
@@ -80,7 +94,9 @@ class ElasticRod:
         # implemented velocity update
         return tf.zeros(self.cvel.get_shape(), dtype=tf.float32)
         '''
+        # TODO: add lagrange multiplier here to cvel update
         return self.cvel + h * self._compute_bend_force()
+        # + self.restl_multiplier * ...
 
     def update_theta(self, h):
         # TODO: This is a placeholder before we actually

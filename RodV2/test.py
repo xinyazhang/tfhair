@@ -6,7 +6,6 @@ import tensorflow as tf
 import RodHelper as helper
 
 from ElasticRod import *
-from functools import partial
 
 # global settings
 n = 3               # number of segments
@@ -44,10 +43,8 @@ feeds = {
 
 with tf.Session() as sess:
     sess.run(tf.global_variables_initializer())
-    rod_init = partial(ElasticRod.init, sess=sess, feeds=feeds)
-    crod, nrod = map(rod_init, [crod, nrod])
     saver = helper.RodSaver("/tmp/tfhair/")
-    for i in range(1000):
+    for i in range(100):
         # crod.dump(sess, feeds, name="nrod")
         new_feeds = {
             crod.cpos : sess.run(nrod.cpos, feed_dict=feeds),

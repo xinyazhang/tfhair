@@ -37,8 +37,6 @@ class ElasticRod:
         self.kappa = self._compute_curvature(self.evec, self.enorms)
         self.fullrestvl = self._compute_full_restvl(self.enorms)
         self.innerrestvl = self._compute_inner_restvl(self.fullrestvl)
-        # constraints
-        self.restl = None
 
     def _compute_edge_vector(self, cpos):
         return cpos[1:,:] - cpos[0:-1,:]
@@ -93,10 +91,6 @@ class ElasticRod:
         # TODO: This is a placeholder before we actually
         # implemented velocity update
         return tf.zeros(self.omega.get_shape(), dtype=tf.float32)
-
-    def init(self, sess, feeds):
-        self.restl = tf.constant(sess.run(self.enorms, feed_dict=feeds), dtype=tf.float32)
-        return self
 
     def dump(self, sess, feeds, name="rod"):
         print "{rod} configuration".format(rod=name)

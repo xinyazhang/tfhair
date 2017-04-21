@@ -156,8 +156,6 @@ def run_test4():
     run_with_bc(n, h, rho, icond, '/tmp/tftest4')
 
 def run():
-    run_test4()
-    return
     run_test1()
     run_test2()
     run_test3()

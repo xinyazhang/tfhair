@@ -302,9 +302,33 @@ def callback_load_keyframes(scene):
         data.task_done()
         # print("load file %s at keyframe %d" % (filename, keyframe))
 
+def option_parser():
+    parser = OptionParser()
+    parser.add_option("", "--simdir", dest="simdir",
+            help="write report to FILE")
+
+    index = 0
+    for i, arg in enumerate(sys.argv):
+        if "BlenderVis.py" in arg:
+            index = i
+            break
+    (options, args) = parser.parse_args(sys.argv[index:])
+    return options
+
 if __name__ == "__main__":
     init_scene()
     bpy.app.handlers.frame_change_post.append(callback_load_keyframes)
 
-    receiver = BlenderUtil.Receiver(callbacks)
-    receiver.receive()
+    options = option_parser()
+    if options.simdir is None:
+        receiver = BlenderUtil.Receiver(callbacks)
+        receiver.receive()
+    else:
+        global data
+        path = os.path.abspath(options.simdir)
+        for name in os.listdir(path):
+            frame = int(name.strip(".npy"))
+            keyframe = compute_keyframe(frame)
+            filepath = os.path.join(path, name)
+            data.put((keyframe, filepath))
+        scene.frame_set(0)

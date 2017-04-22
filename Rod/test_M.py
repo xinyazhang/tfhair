@@ -1,6 +1,6 @@
 #!/usr/bin/env python2
 '''
-Potential Energy
+Test for Motions
 '''
 
 import numpy as np
@@ -17,26 +17,55 @@ def run_with_bc(n, h, rho, icond, path):
     irod = helper.create_TFRod(n)
 
     orod = irod.CalcNextRod(h)
+    rrod = orod.CalcPenaltyRelaxationTF(h)
+
     pfe = TFGetEConstaint(irod)
     saver = helper.RodSaver(path)
+    paddedthetas = np.append(icond.thetas, 0.0)
     with tf.Session() as sess:
+        sess.run(tf.global_variables_initializer())
         for frame in range(720):
             #inputdict = {irod.xs:xs, irod.restl:rl, irod.thetas:thetas, irod.xdots:xdots, irod:omegas:omegas}
             inputdict = helper.create_dict([irod], [icond])
             # print(inputdict)
-            paddedthetas = np.append(icond.thetas, 0.0)
             saver.add_timestep([icond.xs], [paddedthetas])
-            xs, xdots, thetas, omegas = sess.run([orod.xs, orod.xdots,
-                orod.thetas, orod.omegas], feed_dict=inputdict)
+            # xs, xdots, thetas, omegas = sess.run([orod.xs, orod.xdots,
+            #    orod.thetas, orod.omegas], feed_dict=inputdict)
             # print(pfe.eval(feed_dict=inputdict))
             # print(orod.XForce.eval(feed_dict=inputdict))
             # print("thetas {}".format(thetas))
             # print("xdots {}".format(xdots))
-            icond.xs = xs
-            icond.xdots = xdots
-            icond.thetas = thetas
-            icond.omegas = omegas
+            icond = rrod.Relax(sess, irod, icond)
+
     saver.close()
+
+def run_test0():
+    '''
+    Test 0: bending force only
+    '''
+    n = 2
+    h = 1.0/1024.0
+    rho = 1.0
+
+    xs = np.array([
+        [-1,0,0],
+        [0,0,0],
+        [0,-1,0],
+        ])
+    xdots = np.array([
+        [0,0,0],
+        [0,0,0],
+        [0,0,0],
+        ])
+    thetas = np.zeros(shape=[n], dtype=np.float32)
+    omegas = np.zeros(shape=[n], dtype=np.float32)
+    icond = helper.create_BCRod(xs=xs,
+            xdots=xdots,
+            thetas=thetas,
+            omegas=omegas,
+            initd1=np.array([0,1,0])
+            )
+    run_with_bc(n, h, rho, icond, '/tmp/tftest0')
 
 def run_test1():
     '''
@@ -103,7 +132,7 @@ def run_test3():
     Test 3: twisting
     '''
     n = 3
-    h = 1.0/1024.0 * 4
+    h = 1.0/1024.0
     rho = 1.0
 
     xs = np.array([
@@ -133,7 +162,7 @@ def run_test4():
     Test 4: twisting with bending
     '''
     n = 2
-    h = 1.0/1024.0 * 4
+    h = 1.0/1024.0
     rho = 1.0
 
     xs = np.array([
@@ -161,7 +190,7 @@ def run_test5():
     Test 5: Constraints
     '''
     n = 5
-    h = 1.0/(1024.0 * 4.0)
+    h = 1.0/1024.0
     rho = 1.0
 
     xs = np.array([
@@ -191,6 +220,7 @@ def run_test5():
     run_with_bc(n, h, rho, icond, '/tmp/tftest5')
 
 def run():
+    run_test0()
     run_test1()
     run_test2()
     run_test3()

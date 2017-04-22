@@ -99,6 +99,7 @@ def create_dict(irods, drods):
     for i in range(nelem):
         irod = irods[i]
         drod = drods[i]
+        #if type(irod.xs) is tf.placeholder:
         tups.append((irod.xs, drod.xs))
         tups.append((irod.restl, drod.restl))
         tups.append((irod.xdots, drod.xdots))

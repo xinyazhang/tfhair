@@ -1,6 +1,9 @@
 #!/usr/bin/env python2
 
 import tensorflow as tf
+import numpy as np
+import RodHelper as helper
+import math
 
 '''
 Elastic Rod Class
@@ -13,7 +16,7 @@ This is a very flexible class. It may store:
 
 _epsilon = 1e-8
 _default_rho = 0.1
-_stiff = 1e4
+_stiff = 1e7
 
 def _lastdim(tensor):
     return len(tensor.get_shape().as_list()) - 1
@@ -134,7 +137,7 @@ class ElasticRod:
 
     rho = _default_rho
     alpha = 1.0
-    beta = 0.1
+    beta = 1.0
 
     c = None # Translation
     q = None # Rotation quaternion
@@ -181,7 +184,7 @@ class ElasticRod:
         pseudonrod.InitTF()
         if (not self.refd1s is None) and (not self.refd2s is None):
             TFPropogateRefDs(self, pseudonrod)
-        E = self.alpha * pseudonrod.GetEBendTF() + self.beta * pseudonrod.GetETwistTF() + _stiff * pseudonrod.GetEConstaintTF()
+        E = self.alpha * pseudonrod.GetEBendTF() + self.beta * pseudonrod.GetETwistTF() # + _stiff * pseudonrod.GetEConstaintTF()
         XForce, TForce = tf.gradients(-E, [pseudonrod.xs, pseudonrod.thetas])
         nxdots = self.xdots + h * XForce / _paddim(self.fullrestvl * self.rho)
         nomegas = self.omegas + h * TForce / (self.restl * self.rho)
@@ -196,8 +199,55 @@ class ElasticRod:
                 rho=self.rho)
         nrod.XForce = XForce
         nrod.TForce = TForce
-        #nrod.InitTF() 
+        nrod.InitTF()
         return nrod
+
+    def CalcPenaltyRelaxationTF(self, h, learning_rate = 1e-3):
+        xs = tf.Variable(np.zeros(shape=self.xs.get_shape().as_list(), dtype=np.float32), name='xs')
+        relaxxdots = self.xdots + (xs - self.xs) / h
+        relaxrod = ElasticRod(
+                xs=xs,
+                restl=self.restl,
+                xdots=relaxxdots,
+                thetas=self.thetas,
+                omegas=self.omegas,
+                #xdots=None,
+                #thetas=None,
+                #omegas=None,
+                #refd1s=None,
+                #refd2s=None,
+                rho=self.rho)
+        relaxrod.InitTF()
+        relaxrod.init_xs = self.xs
+        relaxrod.loss = relaxrod.GetEConstaintTF()
+        relaxrod.train_op = tf.train.AdamOptimizer(learning_rate).minimize(relaxrod.loss)
+        if (not self.refd1s is None) and (not self.refd2s is None):
+            TFPropogateRefDs(self, relaxrod)
+        return relaxrod
+
+    def Relax(self, sess, irod, icond):
+        inputdict = helper.create_dict([irod], [icond])
+        init_xs = sess.run(self.init_xs, feed_dict=inputdict)
+            #    orod.thetas, orod.omegas], feed_dict=inputdict)
+        sess.run(self.xs.assign(init_xs))
+        for i in range(100):
+            sess.run(self.train_op, feed_dict=inputdict)
+            if i % 1 == 0:
+                E = sess.run(self.loss, feed_dict=inputdict)
+                # print('loss (iter:{}): {}'.format(i, E))
+                if math.fabs(E) < 1e-7:
+                    break
+            '''
+            if i % 100 == 0:
+                E = sess.run(self.loss, feed_dict=inputdict)
+                print('loss: {}'.format(E))
+            '''
+        xs, xdots, thetas, omegas = sess.run([self.xs, self.xdots, self.thetas, self.omegas], feed_dict=inputdict)
+        icond.xs = xs
+        icond.xdots = xdots
+        icond.thetas = thetas
+        icond.omegas = omegas
+        return icond
 
     '''
     Functions with 'TF' suffix assume ElasticRod object members are tensors.

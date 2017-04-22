@@ -1,4 +1,4 @@
-#!blender -P
+#!/usr/bin/blender -P
 
 
 """
@@ -27,8 +27,9 @@ scene = bpy.context.scene
 scene.render.engine = 'CYCLES'
 
 # simulation settings
-timestep = 0.1
-fps = scene.render.fps
+fps = 1000.0
+scene.render.fps = fps
+timestep = 1.0 / fps
 keyframe = 0
 
 # display settings
@@ -276,6 +277,8 @@ def run_sim(data):
         xs = data[i,:,0:3]
         ts = data[i,:,3]
         rod.update(xs, ts)
+
+    scene.frame_end = max(scene.frame_end, keyframe)
 
 def save_blend(filename):
     bpy.ops.wm.save_as_mainfile(filepath=filename)

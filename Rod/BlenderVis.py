@@ -1,4 +1,4 @@
-#!/usr/bin/env blender -P
+#!/usr/bin/blender -P
 
 
 """
@@ -27,8 +27,9 @@ scene = bpy.context.scene
 scene.render.engine = 'CYCLES'
 
 # simulation settings
-timestep = 0.1
-fps = scene.render.fps
+fps = 1000.0
+scene.render.fps = fps
+timestep = 1.0 / fps
 keyframe = 0
 
 # display settings
@@ -170,6 +171,7 @@ class RodState(object):
         curve_data.bevel_object = bpy.data.objects["BezierCircle"]
         # curve type
         self.polyline = curve_data.splines.new("NURBS")
+        # self.polyline = curve_data.splines.new("POLY")
         self.polyline.points.add(knots - len(self.polyline.points))
         self.polyline.use_endpoint_u = True     # connect start and stop points
         # add curve to scene
@@ -240,8 +242,12 @@ class RodState(object):
             point.keyframe_insert('tilt', frame=keyframe)
 
         # update bishop frame
-        for i, (x, y, z) in enumerate(xs):
-            self.bishops[i].location = mathutils.Vector([x, y, z])
+        for i in range(len(xs)-1):
+            x1, y1, z1 = xs[i,:]
+            x2, y2, z2 = xs[i + 1,:]
+            v1 = mathutils.Vector([x1, y1, z1])
+            v2 = mathutils.Vector([x2, y2, z2])
+            self.bishops[i].location = (v1 + v2) / 2.0
             self.bishops[i].rotation_euler = self._compute_euler_angle_from_bishop(bishops[i])
 
         # add keyframe for bishop frame
@@ -271,6 +277,8 @@ def run_sim(data):
         xs = data[i,:,0:3]
         ts = data[i,:,3]
         rod.update(xs, ts)
+
+    scene.frame_end = max(scene.frame_end, keyframe)
 
 def save_blend(filename):
     bpy.ops.wm.save_as_mainfile(filepath=filename)
@@ -302,9 +310,32 @@ def callback_load_keyframes(scene):
         data.task_done()
         # print("load file %s at keyframe %d" % (filename, keyframe))
 
+def option_parser():
+    parser = OptionParser()
+    parser.add_option("", "--simdir", dest="simdir",
+            help="write report to FILE")
+
+    index = 0
+    for i, arg in enumerate(sys.argv):
+        if "BlenderVis.py" in arg:
+            index = i
+            break
+    (options, args) = parser.parse_args(sys.argv[index:])
+    return options
+
 if __name__ == "__main__":
     init_scene()
     bpy.app.handlers.frame_change_post.append(callback_load_keyframes)
 
-    receiver = BlenderUtil.Receiver(callbacks)
-    receiver.receive()
+    options = option_parser()
+    if options.simdir is None:
+        receiver = BlenderUtil.Receiver(callbacks)
+        receiver.receive()
+    else:
+        path = os.path.abspath(options.simdir)
+        for name in os.listdir(path):
+            frame = int(name.strip(".npy"))
+            keyframe = compute_keyframe(frame)
+            filepath = os.path.join(path, name)
+            data.put((keyframe, filepath))
+        scene.frame_set(0)

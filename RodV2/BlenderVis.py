@@ -170,6 +170,7 @@ class RodState(object):
         curve_data.bevel_object = bpy.data.objects["BezierCircle"]
         # curve type
         self.polyline = curve_data.splines.new("NURBS")
+        # self.polyline = curve_data.splines.new("POLY")
         self.polyline.points.add(knots - len(self.polyline.points))
         self.polyline.use_endpoint_u = True     # connect start and stop points
         # add curve to scene
@@ -240,8 +241,12 @@ class RodState(object):
             point.keyframe_insert('tilt', frame=keyframe)
 
         # update bishop frame
-        for i, (x, y, z) in enumerate(xs):
-            self.bishops[i].location = mathutils.Vector([x, y, z])
+        for i in range(len(xs)-1):
+            x1, y1, z1 = xs[i,:]
+            x2, y2, z2 = xs[i + 1,:]
+            v1 = mathutils.Vector([x1, y1, z1])
+            v2 = mathutils.Vector([x2, y2, z2])
+            self.bishops[i].location = (v1 + v2) / 2.0
             self.bishops[i].rotation_euler = self._compute_euler_angle_from_bishop(bishops[i])
 
         # add keyframe for bishop frame
@@ -324,7 +329,6 @@ if __name__ == "__main__":
         receiver = BlenderUtil.Receiver(callbacks)
         receiver.receive()
     else:
-        global data
         path = os.path.abspath(options.simdir)
         for name in os.listdir(path):
             frame = int(name.strip(".npy"))

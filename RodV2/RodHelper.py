@@ -35,7 +35,7 @@ class RodSaver(object):
         results = np.zeros(shape=(n_rods, n_knots, 4), dtype=np.float32)
         for j in xrange(n_rods):
             results[j,:,0:3] = cpos[j]
-            results[j,:,  3] = np.reshape(theta[j], (4))
+            results[j,:,  3] = np.reshape(theta[j], (n_knots))
         filename = os.path.join(self.directory, "%d.npy" % self.frame)
         np.save(filename, results)
         self.connector.send_update(self.frame, filename)

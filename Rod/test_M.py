@@ -29,6 +29,7 @@ def run_with_bc(n, h, rho, icond, path):
             xs, xdots, thetas, omegas = sess.run([orod.xs, orod.xdots,
                 orod.thetas, orod.omegas], feed_dict=inputdict)
             # print(pfe.eval(feed_dict=inputdict))
+            # print(orod.XForce.eval(feed_dict=inputdict))
             # print("thetas {}".format(thetas))
             # print("xdots {}".format(xdots))
             icond.xs = xs
@@ -155,11 +156,46 @@ def run_test4():
             )
     run_with_bc(n, h, rho, icond, '/tmp/tftest4')
 
+def run_test5():
+    '''
+    Test 5: Constraints
+    '''
+    n = 5
+    h = 1.0/(1024.0 * 4.0)
+    rho = 1.0
+
+    xs = np.array([
+        [0,0,0],
+        [1,0,0],
+        [2,0,0],
+        [3,0,0],
+        [4,0,0],
+        [5,0,0],
+        ])
+    xdots = np.array([
+        [240,0,0],
+        [0,0,0],
+        [0,0,0],
+        [0,0,0],
+        [0,0,0],
+        [0,0,0],
+        ])
+    thetas = np.zeros(shape=[n], dtype=np.float32)
+    omegas = np.zeros(shape=[n], dtype=np.float32)
+    icond = helper.create_BCRod(xs=xs,
+            xdots=xdots,
+            thetas=thetas,
+            omegas=omegas,
+            initd1=np.array([0,1,0])
+            )
+    run_with_bc(n, h, rho, icond, '/tmp/tftest5')
+
 def run():
     run_test1()
     run_test2()
     run_test3()
     run_test4()
+    run_test5()
 
 if __name__ == '__main__':
     run()

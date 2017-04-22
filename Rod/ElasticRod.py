@@ -12,7 +12,8 @@ This is a very flexible class. It may store:
 '''
 
 _epsilon = 1e-8
-_stiff = 1
+_default_rho = 0.1
+_stiff = 1e4
 
 def _lastdim(tensor):
     return len(tensor.get_shape().as_list()) - 1
@@ -131,7 +132,7 @@ class ElasticRod:
     refd1s = None
     refd2s = None
 
-    rho = 1.0
+    rho = _default_rho
     alpha = 1.0
     beta = 0.1
 
@@ -145,7 +146,7 @@ class ElasticRod:
     '''
 
     @staticmethod
-    def CreateInputRod(n, rho = 1.0):
+    def CreateInputRod(n, rho = _default_rho):
         return ElasticRod(
                 xs=tf.placeholder(tf.float32, shape=[n+1, 3], name='xs'),
                 restl=tf.placeholder(tf.float32, shape=[n], name='restl'),
@@ -156,7 +157,7 @@ class ElasticRod:
                 refd2s=tf.placeholder(tf.float32, shape=[n, 3], name='refd2s'),
                 rho=rho)
 
-    def __init__(self, xs, restl, xdots, thetas, omegas, refd1s = None, refd2s = None, rho = 1.0):
+    def __init__(self, xs, restl, xdots, thetas, omegas, refd1s = None, refd2s = None, rho = _default_rho):
         self.xs = xs
         self.restl = restl
         self.xdots = xdots
@@ -167,23 +168,35 @@ class ElasticRod:
         self.rho = rho
 
     def CalcNextRod(self, h):
-        self.InitTF()
-        E = self.alpha * self.GetEBendTF() + self.beta * self.GetETwistTF() + _stiff * self.GetEConstaintTF()
-        XForce, TForce = tf.gradients(-E, [self.xs, self.thetas])
+        self.InitTF() # FIXME(optimization): only needs tans for TFPropogateRefDs
         nxs = self.xs + h * self.xdots
-        ndots = self.xdots + h * XForce / _paddim(self.fullrestvl * self.rho)
         nthetas = self.thetas + h * self.omegas
+        pseudonrod = ElasticRod(
+                xs=nxs,
+                restl=self.restl,
+                xdots=self.xdots,
+                thetas=nthetas,
+                omegas=self.omegas,
+                rho=self.rho)
+        pseudonrod.InitTF()
+        if (not self.refd1s is None) and (not self.refd2s is None):
+            TFPropogateRefDs(self, pseudonrod)
+        E = self.alpha * pseudonrod.GetEBendTF() + self.beta * pseudonrod.GetETwistTF() + _stiff * pseudonrod.GetEConstaintTF()
+        XForce, TForce = tf.gradients(-E, [pseudonrod.xs, pseudonrod.thetas])
+        nxdots = self.xdots + h * XForce / _paddim(self.fullrestvl * self.rho)
         nomegas = self.omegas + h * TForce / (self.restl * self.rho)
         nrod = ElasticRod(
                 xs=nxs,
                 restl=self.restl,
-                xdots=ndots,
+                xdots=nxdots,
                 thetas=nthetas,
                 omegas=nomegas,
+                refd1s=pseudonrod.refd1s,
+                refd2s=pseudonrod.refd2s,
                 rho=self.rho)
-        nrod.InitTF() # FIXME(optimization): nrod only needs tans to TFPropogateRefDs
-        if (not self.refd1s is None) and (not self.refd2s is None):
-            TFPropogateRefDs(self, nrod)
+        nrod.XForce = XForce
+        nrod.TForce = TForce
+        #nrod.InitTF() 
         return nrod
 
     '''

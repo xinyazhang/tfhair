@@ -165,19 +165,27 @@ class RodState(object):
         self._init_objects(knots)
 
     def _init_objects(self, knots):
-        # generate NURBS curve
+        # generate curve
         curve_data = bpy.data.curves.new("%s.centerline" % self.name, type='CURVE')
         curve_data.dimensions = '3D'
         curve_data.bevel_object = bpy.data.objects["BezierCircle"]
         # curve type
-        self.polyline = curve_data.splines.new("NURBS")
-        # self.polyline = curve_data.splines.new("POLY")
+        self.polyline = curve_data.splines.new("POLY")
         self.polyline.points.add(knots - len(self.polyline.points))
         self.polyline.use_endpoint_u = True     # connect start and stop points
         # add curve to scene
         self.centerline = bpy.data.objects.new("%s.centerline" % self.name, curve_data)
         self.centerline.data.materials.append(rod_material)
         scene.objects.link(self.centerline)
+        #
+        bpy.ops.object.select_all(action='DESELECT')
+        bpy.context.scene.objects.active = self.centerline # sets the obj accessible to bpy.ops
+        bpy.ops.object.modifier_add(type="SUBSURF")
+        mods = self.centerline.modifiers
+        mods[0].name = "%s.modifier" % self.name
+        mods[0].levels = 4
+        mods[0].render_levels = 4
+        # mods[0].subdivisions.render = 4
         # add bishop frames
         self.bishops = [ create_frame(i) for i in range(knots) ]
         n_dis_step = 1 if knots < 10 else int(knots / 10)

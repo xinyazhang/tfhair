@@ -15,6 +15,7 @@ def run_with_bc(n, h, rho, icond, path):
     '''
     Run the simulation with given boundary conditions (icond)
     '''
+    tf.reset_default_graph()
     irod = helper.create_TFRod(n)
 
     orod = irod.CalcNextRod(h)

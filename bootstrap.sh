@@ -11,7 +11,7 @@ elif [[ "$unamestr" == "Linux" ]] ; then
 	hostdomain=`hostname -d`
 	if [[ "$hostdomain" == 'cs.utexas.edu' ]]; then
 		#wheelurl='https://storage.googleapis.com/tensorflow_sourced/tensorflow-1.0.1-cp35-cp35m-linux_x86_64.whl'
-		wheelurl='tensorflow'
+		wheelurl='https://storage.googleapis.com/sparcit/lib/tensorflow/tensorflow-1.0.1-cp27-cp27mu-linux_x86_64.whl'
 	fi
 fi
 
@@ -27,7 +27,7 @@ echo "virtualenv created"
 source $venvdir/bin/activate
 echo "virtualenv activated"
 
-pip install --upgrade $wheelurl
+pip install --upgrade $wheelurl progressbar2
 
 echo "TensorFlow installed under virtualenv directory $venvdir"
 echo "Leaving"

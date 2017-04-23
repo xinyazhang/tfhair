@@ -14,6 +14,7 @@ Or run directly using
 
 import bpy
 import os, sys
+import scipy.io
 import mathutils
 import numpy as np
 from queue import Queue
@@ -185,37 +186,44 @@ class RodState(object):
         mods[0].name = "%s.modifier" % self.name
         mods[0].levels = 4
         mods[0].render_levels = 4
-        # mods[0].subdivisions.render = 4
-        # add bishop frames
-        self.bishops = [ create_frame(i) for i in range(knots) ]
+        # add material_frame frames
+        self.material_frames = [ create_frame(i) for i in range(knots-1) ]
         n_dis_step = 1 if knots < 10 else int(knots / 10)
-        for i in range(0, knots, n_dis_step):
-            self.bishops[i].hide = False
+        for i in range(0, knots-1, n_dis_step):
+            self.material_frames[i].hide = False
 
-    def _compute_initial_bishop(self, pt1, pt2, theta):
-        axis1 = (pt2 - pt1).normalized()
-        axis2 = mathutils.Vector([-axis1.y, axis1.x, 0]).normalized()
-        axis3 = axis1.cross(axis2)
-        bishop = [ axis1, axis2, axis3 ]
-        return bishop
+    # def _compute_initial_material_frame(self, pt1, pt2, theta):
+    #     axis1 = (pt2 - pt1).normalized()
+    #     axis2 = mathutils.Vector([-axis1.y, axis1.x, 0]).normalized()
+    #     axis3 = axis1.cross(axis2)
+    #     q_twist = mathutils.Quaternion(axis1, theta)
+    #     axis2 = q_twist * axis2
+    #     axis3 = q_twist * axis3
+    #     material_frame = [ axis1, axis2, axis3 ]
+    #     return material_frame
+    #
+    # def _compute_next_material_frame(self, material_frame, pt0, pt1, pt2, theta):
+    #     segment1_dir = (pt1 - pt0).normalized()
+    #     segment2_dir = (pt2 - pt1).normalized()
+    #     axis = segment1_dir.cross(segment2_dir)
+    #     dot = max(-1.0, min(1.0, segment1_dir.dot(segment2_dir)))
+    #     angle = acos(dot)
+    #     q_bend = mathutils.Quaternion(axis, angle)
+    #     next_material_frame = [ q_bend * d for d in material_frame ]
+    #     q_twist = mathutils.Quaternion(segment1_dir, theta)
+    #     next_material_frame[1] = q_twist * next_material_frame[1]
+    #     next_material_frame[2] = q_twist * next_material_frame[2]
+    #     return next_material_frame
 
-    def _compute_next_bishop(self, bishop, pt0, pt1, pt2, theta):
-        segment1_dir = (pt1 - pt0).normalized()
-        segment2_dir = (pt2 - pt1).normalized()
-        axis = segment1_dir.cross(segment2_dir)
-        dot = max(-1.0, min(1.0, segment1_dir.dot(segment2_dir)))
-        angle = acos(dot)
-        q_bend = mathutils.Quaternion(axis, angle)
-        next_bishop = [ q_bend * d for d in bishop ]
-        q_twist = mathutils.Quaternion(segment1_dir, theta)
-        next_bishop[1] = q_twist * next_bishop[1]
-        next_bishop[2] = q_twist * next_bishop[2]
-        return next_bishop
+    def _compute_material_frame(self, theta, pt0, pt1, refd1, refd2):
+        axis1 = (pt1 - pt0).normalized()
+        q_twist = mathutils.Quaternion(axis1, theta)
+        axis2 = q_twist * mathutils.Vector(refd1)
+        axis3 = q_twist * mathutils.Vector(refd2)
+        return  [ axis1, axis2, axis3 ]
 
-    def _compute_euler_angle_from_bishop(self, bishop):
-        e1, e2, e3 = bishop
-        angle1 = atan2(e1.y, e1.x)
-        angle2 = atan2(e1.z, e1.x)
+    def _compute_euler_angle_from_frame(self, material_frame):
+        e1, e2, e3 = material_frame
         mat = mathutils.Matrix()
         mat[0][0:3] = e1
         mat[1][0:3] = e2
@@ -227,16 +235,16 @@ class RodState(object):
         scene.objects.active = self.centerline
         self.centerline.select = True
 
-    def update(self, xs, thetas):
-        # compute bishop frame
-        vector_xs = list(map(lambda x : mathutils.Vector(x), xs))
-        bishops = [ [] ] * (len(vector_xs))
-        bishops[0] = self._compute_initial_bishop(vector_xs[0], vector_xs[1], thetas[0])
-        for i in range(1, len(vector_xs)-1):
-            bishops[i] = self._compute_next_bishop(bishops[i-1],
-                vector_xs[i-1], vector_xs[i], vector_xs[i+1], thetas[i])
-        bishops[len(vector_xs) - 1] = bishops[len(vector_xs) - 2]
+    def update(self, xs, thetas, refd1s, refd2s):
+        # compute material_frame frame
+        vec_xs = list(map(lambda x : mathutils.Vector(x), xs))
+        material_frames = []
+        for i, theta in enumerate(thetas):
+            material_frames.append(self._compute_material_frame(theta, vec_xs[i], vec_xs[i+1], refd1s[i,:], refd2s[i,:]))
+        print(material_frames[0])
+        print(self._compute_euler_angle_from_frame(material_frames[i]))
 
+        thetas = np.pad(thetas, [0, 1], 'edge')
         # update inter control points
         for i, (x, y, z) in enumerate(xs):
             pt = self.polyline.points[i]
@@ -249,19 +257,19 @@ class RodState(object):
             point.keyframe_insert('co', frame=keyframe)
             point.keyframe_insert('tilt', frame=keyframe)
 
-        # update bishop frame
+        # update material_frame frame
         for i in range(len(xs)-1):
             x1, y1, z1 = xs[i,:]
             x2, y2, z2 = xs[i + 1,:]
             v1 = mathutils.Vector([x1, y1, z1])
             v2 = mathutils.Vector([x2, y2, z2])
-            self.bishops[i].location = (v1 + v2) / 2.0
-            self.bishops[i].rotation_euler = self._compute_euler_angle_from_bishop(bishops[i])
+            self.material_frames[i].location = (v1 + v2) / 2.0
+            self.material_frames[i].rotation_euler = self._compute_euler_angle_from_frame(material_frames[i])
 
-        # add keyframe for bishop frame
-        for i, (x, y, z) in enumerate(xs):
-            self.bishops[i].keyframe_insert('location', frame=keyframe)
-            self.bishops[i].keyframe_insert('rotation_euler', frame=keyframe)
+        # add keyframe for material_frame frame
+        for i in range(len(xs)-1):
+            self.material_frames[i].keyframe_insert('location', frame=keyframe)
+            self.material_frames[i].keyframe_insert('rotation_euler', frame=keyframe)
 
 def init_scene():
     delete_object_by_name("Cube")
@@ -272,8 +280,12 @@ def init_scene():
     bpy.data.objects["BezierCircle"].hide = True
 
 def run_sim(data):
-    n_rods, n_centerpoints, n_dim = data.shape
-    radius = 0.02
+    xs = data["cpos"]
+    ts = data["thetas"]
+    refd1s = data["refd1s"]
+    refd2s = data["refd2s"]
+    n_rods, n_centerpoints, _ = xs.shape
+    radius = data.get("radius", 0.02)
 
     # init rods
     global rods
@@ -282,9 +294,7 @@ def run_sim(data):
 
     # update rods
     for i, rod in enumerate(rods):
-        xs = data[i,:,0:3]
-        ts = data[i,:,3]
-        rod.update(xs, ts)
+        rod.update(xs[i], ts[i], refd1s[i], refd2s[i])
 
     scene.frame_end = max(scene.frame_end, keyframe)
 
@@ -314,9 +324,10 @@ def callback_load_keyframes(scene):
     global keyframe
     while not data.empty():
         keyframe, filename = data.get()
-        run_sim(np.load(filename))
+        mdict = {}
+        scipy.io.loadmat(filename, mdict)
+        run_sim(mdict)
         data.task_done()
-        # print("load file %s at keyframe %d" % (filename, keyframe))
 
 def option_parser():
     parser = OptionParser()
@@ -341,8 +352,8 @@ if __name__ == "__main__":
         receiver.receive()
     else:
         path = os.path.abspath(options.simdir)
-        for name in os.listdir(path):
-            frame = int(name.strip(".npy"))
+        for name in filter(lambda x: ".mat" in x, os.listdir(path)):
+            frame = int(name.strip(".mat"))
             keyframe = compute_keyframe(frame)
             filepath = os.path.join(path, name)
             data.put((keyframe, filepath))

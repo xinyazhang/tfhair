@@ -31,8 +31,11 @@ def run_with_bc(n, h, rho, icond, path):
                 #inputdict = {irod.xs:xs, irod.restl:rl, irod.thetas:thetas, irod.xdots:xdots, irod:omegas:omegas}
                 inputdict = helper.create_dict([irod], [icond])
                 # print(inputdict)
-                paddedthetas = np.append(icond.thetas, 0.0)
-                saver.add_timestep([icond.xs], [paddedthetas])
+                saver.add_timestep(
+                    [icond.xs],
+                    [icond.thetas],
+                    [icond.refd1s],
+                    [icond.refd2s])
                 # xs, xdots, thetas, omegas = sess.run([orod.xs, orod.xdots,
                 #    orod.thetas, orod.omegas], feed_dict=inputdict)
                 # print(pfe.eval(feed_dict=inputdict))

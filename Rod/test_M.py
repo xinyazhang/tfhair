@@ -9,6 +9,7 @@ import RodHelper as helper
 import tensorflow as tf
 import math
 from math import pi
+import progressbar
 
 def run_with_bc(n, h, rho, icond, path):
     '''
@@ -23,19 +24,22 @@ def run_with_bc(n, h, rho, icond, path):
     saver = helper.RodSaver(path)
     with tf.Session() as sess:
         sess.run(tf.global_variables_initializer())
-        for frame in range(720):
-            #inputdict = {irod.xs:xs, irod.restl:rl, irod.thetas:thetas, irod.xdots:xdots, irod:omegas:omegas}
-            inputdict = helper.create_dict([irod], [icond])
-            # print(inputdict)
-            paddedthetas = np.append(icond.thetas, 0.0)
-            saver.add_timestep([icond.xs], [paddedthetas])
-            # xs, xdots, thetas, omegas = sess.run([orod.xs, orod.xdots,
-            #    orod.thetas, orod.omegas], feed_dict=inputdict)
-            # print(pfe.eval(feed_dict=inputdict))
-            # print(orod.XForce.eval(feed_dict=inputdict))
-            # print("xdots {}".format(xdots))
-            # print("thetas {}".format(icond.thetas))
-            icond = rrod.Relax(sess, irod, icond)
+        nframe = 720
+        with progressbar.ProgressBar(max_value=nframe-1) as progress:
+            for frame in range(nframe):
+                #inputdict = {irod.xs:xs, irod.restl:rl, irod.thetas:thetas, irod.xdots:xdots, irod:omegas:omegas}
+                inputdict = helper.create_dict([irod], [icond])
+                # print(inputdict)
+                paddedthetas = np.append(icond.thetas, 0.0)
+                saver.add_timestep([icond.xs], [paddedthetas])
+                # xs, xdots, thetas, omegas = sess.run([orod.xs, orod.xdots,
+                #    orod.thetas, orod.omegas], feed_dict=inputdict)
+                # print(pfe.eval(feed_dict=inputdict))
+                # print(orod.XForce.eval(feed_dict=inputdict))
+                # print("xdots {}".format(xdots))
+                # print("thetas {}".format(icond.thetas))
+                icond = rrod.Relax(sess, irod, icond)
+                progress.update(frame)
 
     saver.close()
 
@@ -228,4 +232,4 @@ def run():
     run_test5()
 
 if __name__ == '__main__':
-    run_test3()
+    run()

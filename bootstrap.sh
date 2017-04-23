@@ -23,6 +23,8 @@ elif [[ "$unamestr" == "Linux" ]] ; then
 		avx2=`grep avx2 /proc/cpuinfo|wc -c`
 		if [[ $avx2 -ne 0 ]]; then
 			wheelurl='https://storage.googleapis.com/sparcit/lib/tensorflow/tensorflow-1.0.1-cp27-cp27mu-linux_x86_64.whl'
+		else
+			wheelurl='tensorflow'
 		fi
 	fi
 fi
@@ -30,6 +32,7 @@ fi
 if [[ "y$wheelurl" == 'y' ]]; then
 	echo "bootstrap.sh cannot detect your system, probably your system already has TensorFlow installed by the administrator"
 	echo "Exiting"
+	exit
 fi
 
 echo "Creating virtualenv"

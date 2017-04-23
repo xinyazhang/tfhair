@@ -220,7 +220,14 @@ class ElasticRod:
         relaxrod.InitTF()
         relaxrod.init_xs = self.xs
         relaxrod.loss = relaxrod.GetEConstaintTF()
-        relaxrod.train_op = tf.train.AdamOptimizer(learning_rate).minimize(relaxrod.loss)
+        relaxrod.trainer = tf.train.AdamOptimizer(learning_rate)
+        relaxrod.grads = relaxrod.trainer.compute_gradients(relaxrod.loss)
+        print('relaxrod.grads {}'.format(relaxrod.grads))
+        print('relaxrod.fullrestvl {}'.format(relaxrod.fullrestvl))
+        print('relaxrod.rho {}'.format(relaxrod.rho))
+        relaxrod.weighted_grads = \
+            [(grad[0] / _paddim(relaxrod.fullrestvl * relaxrod.rho), grad[1]) for grad in relaxrod.grads]
+        relaxrod.apply_grads_op = relaxrod.trainer.apply_gradients(relaxrod.weighted_grads)
         if (not self.refd1s is None) and (not self.refd2s is None):
             TFPropogateRefDs(self, relaxrod)
         return relaxrod
@@ -231,7 +238,8 @@ class ElasticRod:
             #    orod.thetas, orod.omegas], feed_dict=inputdict)
         sess.run(self.xs.assign(init_xs))
         for i in range(100):
-            sess.run(self.train_op, feed_dict=inputdict)
+            # sess.run(self.train_op, feed_dict=inputdict)
+            sess.run(self.apply_grads_op, feed_dict=inputdict)
             if i % 1 == 0:
                 E = sess.run(self.loss, feed_dict=inputdict)
                 # print('loss (iter:{}): {}'.format(i, E))

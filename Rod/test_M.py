@@ -26,7 +26,8 @@ def run_with_bc(n, h, rho, icond, path):
     with tf.Session() as sess:
         sess.run(tf.global_variables_initializer())
         nframe = 720
-        with progressbar.ProgressBar(max_value=nframe-1) as progress:
+        #nframe = 10
+        with progressbar.ProgressBar(max_value=nframe) as progress:
             for frame in range(nframe):
                 #inputdict = {irod.xs:xs, irod.restl:rl, irod.thetas:thetas, irod.xdots:xdots, irod:omegas:omegas}
                 inputdict = helper.create_dict([irod], [icond])
@@ -43,7 +44,9 @@ def run_with_bc(n, h, rho, icond, path):
                 # print("xdots {}".format(xdots))
                 # print("thetas {}".format(icond.thetas))
                 icond = rrod.Relax(sess, irod, icond)
-                progress.update(frame)
+                # print("refd1s {}".format(icond.refd1s))
+                # print("refd2s {}".format(icond.refd2s))
+                progress.update(frame+1)
 
     saver.close()
 

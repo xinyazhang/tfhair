@@ -241,8 +241,8 @@ class RodState(object):
         material_frames = []
         for i, theta in enumerate(thetas):
             material_frames.append(self._compute_material_frame(theta, vec_xs[i], vec_xs[i+1], refd1s[i,:], refd2s[i,:]))
-        print(material_frames[0])
-        print(self._compute_euler_angle_from_frame(material_frames[i]))
+        # print(material_frames[0])
+        # print(self._compute_euler_angle_from_frame(material_frames[0]))
 
         thetas = np.pad(thetas, [0, 1], 'edge')
         # update inter control points

@@ -80,7 +80,7 @@ def TFGetLengthConstaintFunction(rod):
 
 # For unit \alpha
 def TFParallelTransportQuaternion(prod, crod):
-    axes = tf.cross(prod.tans, crod.tans)
+    axes = -tf.cross(prod.tans, crod.tans)
     cosines = _dot(prod.tans, crod.tans)
     halfconsines = tf.sqrt((cosines + 1)/2.0)
     halfconsines = tf.stack([halfconsines], _lastdim(halfconsines)+1) # pad one dimension
@@ -89,7 +89,7 @@ def TFParallelTransportQuaternion(prod, crod):
     bcd = tf.multiply(axes, 0.5/halfconsines)
     return halfconsines, bcd
 
-def TFPropogateRefDs(prod, crod):
+def TFPropogateRefDs(prod, crod, normalize=False):
     '''
     Calculate the current reference directions from the previous time frame.
     '''
@@ -113,6 +113,9 @@ def TFPropogateRefDs(prod, crod):
     refd2s = tf.stack([prod.refd2s], axis=_lastdim(prod.refd2s)+1)
     crod.refd1s = tf.reshape(tf.matmul(R, refd1s), shape)
     crod.refd2s = tf.reshape(tf.matmul(R, refd2s), shape)
+    if normalize:
+        crod.refd1s = _normalize(crod.refd1s)
+        crod.refd2s = _normalize(crod.refd2s)
     return crod
 
 class ElasticRod:
@@ -202,7 +205,7 @@ class ElasticRod:
         nrod.InitTF()
         return nrod
 
-    def CalcPenaltyRelaxationTF(self, h, learning_rate = 1e-3):
+    def CalcPenaltyRelaxationTF(self, h, learning_rate=1e-3):
         xs = tf.Variable(np.zeros(shape=self.xs.get_shape().as_list(), dtype=np.float32), name='xs')
         relaxxdots = self.xdots + (xs - self.xs) / h
         relaxrod = ElasticRod(
@@ -222,15 +225,21 @@ class ElasticRod:
         relaxrod.loss = relaxrod.GetEConstaintTF()
         relaxrod.trainer = tf.train.AdamOptimizer(learning_rate)
         relaxrod.grads = relaxrod.trainer.compute_gradients(relaxrod.loss)
-        print('relaxrod.grads {}'.format(relaxrod.grads))
-        print('relaxrod.fullrestvl {}'.format(relaxrod.fullrestvl))
-        print('relaxrod.rho {}'.format(relaxrod.rho))
+        # print('relaxrod.grads {}'.format(relaxrod.grads))
+        # print('relaxrod.fullrestvl {}'.format(relaxrod.fullrestvl))
+        # print('relaxrod.rho {}'.format(relaxrod.rho))
         relaxrod.weighted_grads = \
             [(grad[0] / _paddim(relaxrod.fullrestvl * relaxrod.rho), grad[1]) for grad in relaxrod.grads]
         relaxrod.apply_grads_op = relaxrod.trainer.apply_gradients(relaxrod.weighted_grads)
         if (not self.refd1s is None) and (not self.refd2s is None):
-            TFPropogateRefDs(self, relaxrod)
+            TFPropogateRefDs(self, relaxrod, normalize=True)
         return relaxrod
+
+    def GetVariableList(self):
+        return [self.xs, self.xdots, self.thetas, self.omegas, self.refd1s, self.refd2s]
+
+    def UpdateVariable(self, vl):
+        [self.xs, self.xdots, self.thetas, self.omegas, self.refd1s, self.refd2s] = vl
 
     def Relax(self, sess, irod, icond):
         inputdict = helper.create_dict([irod], [icond])
@@ -250,11 +259,8 @@ class ElasticRod:
                 E = sess.run(self.loss, feed_dict=inputdict)
                 print('loss: {}'.format(E))
             '''
-        xs, xdots, thetas, omegas = sess.run([self.xs, self.xdots, self.thetas, self.omegas], feed_dict=inputdict)
-        icond.xs = xs
-        icond.xdots = xdots
-        icond.thetas = thetas
-        icond.omegas = omegas
+        vl = sess.run(self.GetVariableList(), feed_dict=inputdict)
+        icond.UpdateVariable(vl)
         return icond
 
     '''

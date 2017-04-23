@@ -1,5 +1,14 @@
 #!/bin/bash
 
+tensorinfo=`pip2 show tensorflow|wc -c`
+
+if [[ $tensorinfo -ne 0 ]]; then
+	echo "This system already has tensorflow installed for python2"
+	echo "There is no need to run this script"
+	echo "Exiting"
+	exit
+fi
+
 venvdir='venv'
 unamestr=`uname`
 wheelurl=''
@@ -9,9 +18,12 @@ if [[ "$unamestr" == 'Darwin' ]]; then
 	wheelurl='tensorflow'
 elif [[ "$unamestr" == "Linux" ]] ; then
 	hostdomain=`hostname -d`
+	avx2=`grep avx2 /proc/cpuinfo`
 	if [[ "$hostdomain" == 'cs.utexas.edu' ]]; then
-		#wheelurl='https://storage.googleapis.com/tensorflow_sourced/tensorflow-1.0.1-cp35-cp35m-linux_x86_64.whl'
-		wheelurl='https://storage.googleapis.com/sparcit/lib/tensorflow/tensorflow-1.0.1-cp27-cp27mu-linux_x86_64.whl'
+		avx2=`grep avx2 /proc/cpuinfo|wc -c`
+		if [[ $avx2 -ne 0 ]]; then
+			wheelurl='https://storage.googleapis.com/sparcit/lib/tensorflow/tensorflow-1.0.1-cp27-cp27mu-linux_x86_64.whl'
+		fi
 	fi
 fi
 

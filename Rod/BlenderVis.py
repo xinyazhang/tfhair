@@ -284,17 +284,19 @@ def run_sim(data):
     ts = data["thetas"]
     refd1s = data["refd1s"]
     refd2s = data["refd2s"]
-    n_rods, n_centerpoints, _ = xs.shape
+    n_batch, n_rods, n_centerpoints, _ = xs.shape
     radius = data.get("radius", 0.02)
 
     # init rods
     global rods
     if rods is None:
-        rods = [ RodState("rod-%d" % i, n_centerpoints, radius, "rod") for i in range(n_rods) ]
+        rods = [ [ RodState("rod-{batch}-{id}".format(batch=i, id=j), n_centerpoints, radius)
+            for j in range(n_rods) ] for i in range(n_batch) ]
 
     # update rods
-    for i, rod in enumerate(rods):
-        rod.update(xs[i], ts[i], refd1s[i], refd2s[i])
+    for i in range(n_batch):
+        for j in range(n_rods):
+            rods[i][j].update(xs[i][j], ts[i][j], refd1s[i][j], refd2s[i][j])
 
     scene.frame_end = max(scene.frame_end, keyframe)
 

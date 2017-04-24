@@ -19,10 +19,11 @@ _default_rho = 0.1
 _stiff = 1e7
 
 def _lastdim(tensor):
-    return len(tensor.get_shape().as_list()) - 1
+    return len(tensor.get_shape()) - 1
 
-def _dot(tensor1, tensor2):
-    dim = _lastdim(tensor1)
+def _dot(tensor1, tensor2, dim=None):
+    if dim == None:
+        dim = _lastdim(tensor1)
     return tf.reduce_sum(tf.multiply(tensor1, tensor2), dim, keep_dims=False)
 
 def _trimslices(tensor, dim = 0, margins = [1, 1]):
@@ -117,6 +118,72 @@ def TFPropogateRefDs(prod, crod, normalize=False):
         crod.refd1s = _normalize(crod.refd1s)
         crod.refd2s = _normalize(crod.refd2s)
     return crod
+
+def TFRodXSel(rod, Sel):
+    xs_i_1, xs_i = _diffslices(rod.xs, dim=_lastdim(rod.xs)-1)
+    gxs_i_1 = tf.gather_nd(xs_i_1, Sel)
+    gxs_i = tf.gather_nd(xs_i, Sel)
+    # FIXME: More general cases
+    gxs_i_1.set_shape([None, 3])
+    gxs_i.set_shape([None, 3])
+    return gxs_i_1, gxs_i
+
+def TFConvexityByList(tensormat):
+    faceconvexity = []
+    # print(tensormat[0][0].get_shape())
+    dim = _lastdim(tensormat[0][0]) - 1
+    print('dim {}'.format(dim))
+    for i in range(len(tensormat)):
+        tensorlist = tensormat[i]
+        axes = tf.cross(tensorlist[1] - tensorlist[0], tensorlist[2] - tensorlist[0])
+        dotsigns = []
+        for j in range(3, 6):
+            delta = tensorlist[j] - tensorlist[0]
+            '''
+            print('delta shape {}'.format(delta.get_shape()))
+            print('axes shape {}'.format(axes.get_shape()))
+            muls = tf.multiply(delta, axes)
+            print('mul shape {}'.format(muls.get_shape()))
+            dots = tf.reduce_sum(muls, 1, keep_dims=False)
+            print('dots shape {}'.format(dots.get_shape()))
+            '''
+            dotsigns.append(tf.sign(_dot(delta, axes, dim=dim)))
+        faceconvexity.append(tf.equal(dotsigns[0], dotsigns[1]))
+        faceconvexity.append(tf.equal(dotsigns[0], dotsigns[2]))
+    convexity = faceconvexity[0]
+    for i in range(1, len(faceconvexity)):
+        convexity = tf.logical_and(convexity, faceconvexity[i])
+    return convexity
+
+def TFRodCCD(crod, nrod, srod, ASelS, BSelS):
+
+    '''
+    Continus Collision Detection between Rod A and Rod B
+
+    crod: ElasticRod object representing current position of Rod A
+    nrod: ElasticRod object representing next position of Rod A
+    srod: ElasticRod object representing current position of Rod B
+    ASelS, BSelS: Selecting Tensors for Rod A and B respectively
+          Check tf.gather for more details
+    Note: assumes 2 now, 4 may use TFRodSCCD
+    '''
+    ''' Gathered Current Xs'''
+    gcxs_k_1, gcxs_k = TFRodXSel(crod, ASelS)
+    gnxs_k_1, gnxs_k = TFRodXSel(nrod, ASelS)
+    npoles, spoles = TFRodXSel(srod, BSelS)
+    verts = [
+            [npoles, gcxs_k_1, gcxs_k, gnxs_k, gnxs_k_1, spoles],
+            [npoles, gcxs_k, gnxs_k, gnxs_k_1, gcxs_k_1, spoles],
+            [npoles, gnxs_k, gnxs_k_1, gcxs_k_1, gcxs_k, spoles],
+            [npoles, gnxs_k_1, gcxs_k_1, gcxs_k, gnxs_k, spoles],
+            [spoles, gcxs_k_1, gcxs_k, gnxs_k, gnxs_k_1, npoles],
+            [spoles, gcxs_k, gnxs_k, gnxs_k_1, gcxs_k_1, npoles],
+            [spoles, gnxs_k, gnxs_k_1, gcxs_k_1, gcxs_k, npoles],
+            [spoles, gnxs_k_1, gcxs_k_1, gcxs_k, gnxs_k, npoles]
+            ]
+    # return verts[0]
+    convexity = TFConvexityByList(verts)
+    return convexity
 
 class ElasticRod:
 

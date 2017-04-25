@@ -16,7 +16,8 @@ import bpy
 import os, sys
 import optparse
 
-sys.path.append(os.getcwd())
+script_path = os.path.abspath(os.path.dirname(__file__))
+sys.path.append(script_path)
 from BlenderScene import *
 from BlenderObject import *
 

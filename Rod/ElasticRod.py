@@ -26,15 +26,19 @@ def _dot(tensor1, tensor2, dim=None):
         dim = _lastdim(tensor1)
     return tf.reduce_sum(tf.multiply(tensor1, tensor2), dim, keep_dims=False)
 
-def _trimslices(tensor, dim = 1, margins = [1, 1]):
-    shape = tensor.get_shape().as_list()
+def _trimslices(tensor, dim = None, margins = [1, 1]):
+    if dim == None:
+        dim = _lastdim(tensor) - 1
+    shape = tensor.get_shape()
     start = list([0] * len(shape))
-    size = list(shape)
+    size = list(shape.as_list())
     start[dim] = margins[0]
     size[dim] -= margins[1] + margins[0]
     return tf.slice(tensor, start, size)
 
-def _diffslices(norms, dim = 1):
+def _diffslices(norms, dim = None):
+    if dim is None:
+        dim = _lastdim(norms) - 1
     en_i_1 = _trimslices(norms, dim, [0, 1])
     en_i = _trimslices(norms, dim, [1, 0])
     return en_i_1, en_i
@@ -48,9 +52,10 @@ def _normalize(evec):
 
 def _paddim(tensor):
     return tf.stack([tensor], axis=_lastdim(tensor)+1)
+    #return tf.expand_dims(tensor, -1)
 
 def TFGetEdgeVector(xs):
-    x_i_1, x_i = _diffslices(xs, 1)
+    x_i_1, x_i = _diffslices(xs)
     return x_i - x_i_1
 
 def TFGetEdgeLength(evec):
@@ -59,19 +64,35 @@ def TFGetEdgeLength(evec):
 
 def TFGetVoronoiEdgeLength(enorms):
     en_i_1, en_i = _diffslices(enorms)
-    en_i_1 = tf.pad(enorms, [[0, 0], [0, 1]], 'CONSTANT')
-    en_i   = tf.pad(enorms, [[0, 0], [1, 0]], 'CONSTANT')
+    # print(en_i_1)
+    # print(len(en_i_1.get_shape()))
+    paddings = [[0,0] for i in range(len(enorms.get_shape()))]
+    # print(paddings)
+    paddings[-1] = [0,1]
+    # print(paddings)
+    en_i_1 = tf.pad(enorms, paddings, 'CONSTANT')
+    paddings[-1] = [1,0]
+    # print(paddings)
+    en_i   = tf.pad(enorms, paddings, 'CONSTANT')
     return (en_i_1 + en_i) / 2
 
 def TFGetCurvature(ev, enorms):
-    e_i_1, e_i = _diffslices(ev, 1)
-    en_i_1, en_i = _diffslices(enorms,1)
+    e_i_1, e_i = _diffslices(ev)
+    en_i_1, en_i = _diffslices(enorms, dim=_lastdim(enorms))
     denominator1 = en_i_1 * en_i
-    denominator2 = tf.reduce_sum(tf.multiply(e_i_1, e_i), _lastdim(e_i), keep_dims=False)
-    # print("TFGetCurvature: {}".format(denominator2.get_shape()))
+    #denominator2 = tf.reduce_sum(tf.multiply(e_i_1, e_i), _lastdim(e_i), keep_dims=False)
+    denominator2 = _dot(e_i_1, e_i)
+    # print("ev: {}".format(ev.get_shape()))
+    # print("enorms: {}".format(enorms))
+    # print("e_i_1: {}".format(e_i_1.get_shape()))
+    # print("en_i_1: {}".format(en_i_1.get_shape()))
+    # print("TFGetCurvature 1: {}".format(denominator1.get_shape()))
+    # print("TFGetCurvature 2: {}".format(denominator2.get_shape()))
     denominator = (denominator1+denominator2)
     shape3 = denominator.get_shape().as_list()
-    denominator = tf.reshape(denominator, [shape3[0],shape3[1], 1])
+    # print(denominator.get_shape())
+    denominator = _paddim(denominator)
+    # print(denominator.get_shape())
     return 2 * tf.multiply(tf.cross(e_i_1, e_i), 1.0/(denominator))
 
 def TFGetLengthConstaintFunction(rod):
@@ -190,7 +211,7 @@ class ElasticRodS:
     '''
     Convention of essential ElasticRod members
     xs, xdots: 2D (n+1) x 3 tensor, for vertex positions/velocities
-    restl: 1D (n) x 3 tensor
+    restl: 1D (n) tensor
     thetas, omegas: 1D n tensor, for twisting/angular velocity on edges w.r.t. reference frame (aka Bishop frame)
             Note, we assumes PIECE-WISE CONSTANT twisting
     tans, refd1s, refd2s: 2D n x 3 tensor, to store reference directions
@@ -219,6 +240,18 @@ class ElasticRodS:
     evec: 2D (n+1) x 3 tensor, for edge vectors (evec_i = x_{i+1} - x_i)
     ls: 1D n tensor with real elements, for voronoi region of each vertex (besides the first vertex)
     '''
+
+    @staticmethod
+    def CreateInputRod(n_segs, rho = _default_rho):
+        return ElasticRodS(
+                xs=tf.placeholder(tf.float32, shape=[n_segs+1, 3], name='xs'),
+                restl=tf.placeholder(tf.float32, shape=[n_segs], name='restl'),
+                xdots=tf.placeholder(tf.float32, shape=[n_segs+1, 3], name='xdots'),
+                thetas=tf.placeholder(tf.float32, shape=[n_segs], name='thetas'),
+                omegas=tf.placeholder(tf.float32, shape=[n_segs], name='omegas'),
+                refd1s=tf.placeholder(tf.float32, shape=[n_segs, 3], name='refd1s'),
+                refd2s=tf.placeholder(tf.float32, shape=[n_segs, 3], name='refd2s'),
+                rho=rho)
 
     @staticmethod
     def CreateInputRodS(n_rods, n_segs, rho = _default_rho):
@@ -257,7 +290,14 @@ class ElasticRodS:
         if (not self.refd1s is None) and (not self.refd2s is None):
             TFPropogateRefDs(self, pseudonrod)
         E = self.alpha * pseudonrod.GetEBendTF() + self.beta * pseudonrod.GetETwistTF() # + _stiff * pseudonrod.GetEConstaintTF()
+        # print('E: {}'.format(E))
+        # print('pseudonrod.xs: {}'.format(pseudonrod.xs))
+        # print('pseudonrod.thetas: {}'.format(pseudonrod.thetas))
+        # TForce = tf.gradients(-E, pseudonrod.thetas)
+        # XForce = tf.gradients(-E, pseudonrod.xs)
         XForce, TForce = tf.gradients(-E, [pseudonrod.xs, pseudonrod.thetas])
+        # print('XForce: {}'.format(XForce))
+        # print('TForce: {}'.format(TForce))
         nxdots = self.xdots + h * XForce / _paddim(self.fullrestvl * self.rho)
         nomegas = self.omegas + h * TForce / (self.restl * self.rho)
         nrod = ElasticRodS(
@@ -363,10 +403,17 @@ class ElasticRodS:
         '''
         #theta_i_1, theta_i = _diffslices(rod.thetas)
         refd1primes = tf.cross(rod.ks, _trimslices(rod.refd1s, margins=[0,1]))
+        # print('rod.ks {}'.format(rod.ks))
+        # print('refd1primes {}'.format(refd1primes))
         rod.mbars = _dot(refd1primes, _trimslices(rod.refd2s, margins=[0,1]))
-        theta_i_1, theta_i = _diffslices(rod.thetas)
+        # print('rod.mbars {}'.format(rod.mbars))
+        # print('rod.thetas {}'.format(rod.thetas))
+        theta_i_1, theta_i = _diffslices(rod.thetas, dim=_lastdim(rod.thetas))
+        # print('theta_i {}'.format(theta_i))
         difftheta = theta_i - theta_i_1
+        # print('difftheta {}'.format(difftheta))
         deltatheta = difftheta - rod.mbars
+        # print('deltatheta {}'.format(deltatheta))
         return tf.reduce_sum(tf.multiply(deltatheta*deltatheta, 1.0/rod.innerrestvl))
 
     def TFKineticI(rodnow, rodnext, h):

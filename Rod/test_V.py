@@ -99,7 +99,7 @@ def run_twist():
         [1,-1,0]
         ])
     rl = helper.calculate_rest_length(xs)
-    refd1s, refd2s = helper.calculate_referene_directions(xs, np.array([0,1,0]))
+    refd1s, refd2s = helper.calculate_reference_directions(xs, np.array([0,1,0]))
     '''
     refd1s = np.array([
         [0,1,0],
@@ -119,7 +119,7 @@ def run_twist():
         [2,0,0]
         ])
     rl2 = helper.calculate_rest_length(xs2)
-    refd1s2, refd2s2 = helper.calculate_referene_directions(xs2, np.array([0,1,0]))
+    refd1s2, refd2s2 = helper.calculate_reference_directions(xs2, np.array([0,1,0]))
 
     with tf.Session() as sess:
         tf.global_variables_initializer()

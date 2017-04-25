@@ -26,7 +26,7 @@ def run_with_bc(n, h, rho, icond, path):
     with tf.Session() as sess:
         sess.run(tf.global_variables_initializer())
         nframe = 720
-        #nframe = 10
+        # nframe = 10
         with progressbar.ProgressBar(max_value=nframe) as progress:
             for frame in range(nframe):
                 #inputdict = {irod.xs:xs, irod.restl:rl, irod.thetas:thetas, irod.xdots:xdots, irod:omegas:omegas}
@@ -70,7 +70,7 @@ def run_test0():
         ])
     thetas = np.zeros(shape=[n], dtype=np.float32)
     omegas = np.zeros(shape=[n], dtype=np.float32)
-    icond = helper.create_BCRod(xs=xs,
+    icond = helper.create_BCRodS(xs=xs,
             xdots=xdots,
             thetas=thetas,
             omegas=omegas,

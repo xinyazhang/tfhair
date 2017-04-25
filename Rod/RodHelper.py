@@ -95,14 +95,25 @@ def calculate_batch_reference_directions(xs, initd1s):
         batch_refd2s.append(refd2s)
     return np.array(batch_refd1s), np.array(batch_refd2s)
 
+def create_TFRod(n_segs):
+    return ElasticRod.ElasticRodS.CreateInputRod(n_segs)
+
 def create_TFRodS(n_rods, n_segs):
     return ElasticRod.ElasticRodS.CreateInputRodS(n_rods, n_segs)
 
 def create_BCRodS(xs, xdots, thetas, omegas, initd1):
-    rl = calculate_rest_lengths(xs)
+    if len(xs.shape) == 2:
+        rl = calculate_rest_length(xs)
+        creator = calculate_reference_directions
+    else:
+        rl = calculate_rest_lengths(xs)
+        creator = calculate_batch_reference_directions
     rod = ElasticRod.ElasticRodS(xs=xs, restl=rl, xdots=xdots, thetas=thetas, omegas=omegas)
-    rod.refd1s, rod.refd2s = calculate_batch_reference_directions(xs, initd1)
+    rod.refd1s, rod.refd2s = creator(xs, initd1)
     return rod
+
+def create_BCRod(xs, xdots, thetas, omegas, initd1):
+    return create_BCRodS(xs, xdots, thetas, omegas, initd1)
 
 def create_dict(irods, drods):
     '''

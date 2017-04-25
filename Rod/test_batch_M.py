@@ -79,7 +79,7 @@ def run_test0():
         omegas=omegas,
         initd1=initd1
     )
-    run_with_bc(n_rods, n_segs, h, rho, icond, '/tmp/tftest0')
+    run_with_bc(n_rods, n_segs, h, rho, icond, '/tmp/tftest0b')
 
 def run_test1():
     '''
@@ -110,7 +110,7 @@ def run_test1():
         omegas=omegas,
         initd1=initd1
     )
-    run_with_bc(n_rods, n_segs, h, rho, icond, '/tmp/tftest1')
+    run_with_bc(n_rods, n_segs, h, rho, icond, '/tmp/tftest1b')
 
 def run_test2():
     '''
@@ -141,7 +141,7 @@ def run_test2():
         omegas=omegas,
         initd1=initd1
     )
-    run_with_bc(n_rods, n_segs, h, rho, icond, '/tmp/tftest2')
+    run_with_bc(n_rods, n_segs, h, rho, icond, '/tmp/tftest2b')
 
 def run_test3():
     '''
@@ -175,7 +175,7 @@ def run_test3():
         omegas=omegas,
         initd1=initd1
     )
-    run_with_bc(n_rods, n_segs, h, rho, icond, '/tmp/tftest3')
+    run_with_bc(n_rods, n_segs, h, rho, icond, '/tmp/tftest3b')
 
 def run_test4():
     '''
@@ -209,7 +209,7 @@ def run_test4():
         omegas=omegas,
         initd1=initd1
     )
-    run_with_bc(n_rods, n_segs, h, rho, icond, '/tmp/tftest4')
+    run_with_bc(n_rods, n_segs, h, rho, icond, '/tmp/tftest4b')
 
 def run_test5():
     '''
@@ -240,10 +240,10 @@ def run_test5():
             omegas=omegas,
             initd1=initd1
     )
-    run_with_bc(n_rods, n_segs, h, rho, icond, '/tmp/tftest5')
+    run_with_bc(n_rods, n_segs, h, rho, icond, '/tmp/tftest5b')
 
 def run():
-    run_test0()
+    # run_test0()
     run_test1()
     run_test2()
     run_test3()

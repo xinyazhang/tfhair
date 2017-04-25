@@ -76,6 +76,11 @@ class Scene(object):
     def Load(self, frame, filename):
         pass
 
+def _expand_to(tensor, to):
+    if len(tensor.shape) == to:
+        return tensor
+    return np.expand_dims(tensor, 0)
+
 class RodScene(Scene):
 
     def __init__(self, fps, scene=0):
@@ -92,10 +97,10 @@ class RodScene(Scene):
         keyframe = self.ComputeKeyframe(frame)
         self.SetDuration(frame)
 
-        xs = data["cpos"]
-        ts = data["thetas"]
-        refd1s = data["refd1s"]
-        refd2s = data["refd2s"]
+        xs = _expand_to(data["cpos"], 4)
+        ts = _expand_to(data["thetas"], 3)
+        refd1s = _expand_to(data["refd1s"], 4)
+        refd2s = _expand_to(data["refd2s"], 4)
         n_batch, n_rods, n_centerpoints, _ = xs.shape
         radius = data.get("radius", 0.02)
 

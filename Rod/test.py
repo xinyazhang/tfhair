@@ -5,6 +5,7 @@ import test_PT
 import test_V
 import test_T
 import test_M
+import test_batch_M
 
 #sess = tf.InteractiveSession()
 #sess.run(tf.global_variables_initializer())
@@ -18,4 +19,4 @@ test_PT.run()
 test_V.run()
 test_T.run()
 test_M.run()
-
+test_batch_M.run()

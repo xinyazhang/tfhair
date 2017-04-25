@@ -1,3 +1,4 @@
+import os
 import bpy
 import scipy.io
 import numpy as np
@@ -115,3 +116,43 @@ class RodScene(Scene):
         for i in range(n_batch):
             for j in range(n_rods):
                 self.rods[i][j].Update(keyframe, xs[i][j], ts[i][j], refd1s[i][j], refd2s[i][j])
+
+class HairScene(Scene):
+
+    def __init__(self, fps, scene=0):
+        super(HairScene, self).__init__(fps, scene)
+        self.number = scene
+
+    def Load(self, frame, filename):
+        pass
+
+    def Update(self, frame, data):
+        pass
+
+    def Dump(self, filename):
+        # print(bpy.context.object.particle_systems[0].particles[0].hair_keys[0].co)
+        obj = bpy.context.object
+        hairs = obj.particle_systems[0].particles
+        n_rods = len(hairs)
+        n_segs = len(hairs[0].hair_keys) - 1
+        # create numpy tensors
+        cpos = np.zeros(shape=(n_rods, n_segs+1, 3), dtype=np.float32)
+        cvel = np.zeros(shape=(n_rods, n_segs+1, 3), dtype=np.float32)
+        theta = np.zeros(shape=(n_rods, n_segs), dtype=np.float32)
+        omega = np.zeros(shape=(n_rods, n_segs), dtype=np.float32)
+        initds = np.zeros(shape=(n_rods, 3), dtype=np.float32)
+        # assign cpos and theta (theta not available here)
+        for i, h in enumerate(hairs):
+            for j, hv in enumerate(h.hair_keys):
+                cpos[i,j,:] = np.array(hv.co)
+            initds[i,:] = (hairs[i].hair_keys[1].co - hairs[i].hair_keys[0].co).normalized()
+
+        filename = os.path.abspath(filename)
+        mdict = {
+            "cpos"   : cpos,
+            "cvel"   : cvel,
+            "thetas" : theta,
+            "omegas" : omega,
+            "initds" : initds
+        }
+        scipy.io.savemat(filename, mdict, appendmat=True)

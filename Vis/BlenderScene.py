@@ -130,7 +130,6 @@ class HairScene(Scene):
         pass
 
     def Dump(self, filename):
-        # print(bpy.context.object.particle_systems[0].particles[0].hair_keys[0].co)
         obj = bpy.context.object
         hairs = obj.particle_systems[0].particles
         n_rods = len(hairs)
@@ -143,16 +142,23 @@ class HairScene(Scene):
         initds = np.zeros(shape=(n_rods, 3), dtype=np.float32)
         # assign cpos and theta (theta not available here)
         for i, h in enumerate(hairs):
+            # assign cpos
             for j, hv in enumerate(h.hair_keys):
                 cpos[i,j,:] = np.array(hv.co)
-            initds[i,:] = (hairs[i].hair_keys[1].co - hairs[i].hair_keys[0].co).normalized()
+            # compute initd1
+            d1 = (hairs[i].hair_keys[1].co - hairs[i].hair_keys[0].co).normalized()
+            d2 = mathutils.Vector([1, 0, 0])
+            if d1.cross(d2).length == 0:
+                d2 = mathutils.Vector([0, 1, 0])
+            d3 = d1.cross(d2)
+            initds[i,:] = np.array(d3)
 
         filename = os.path.abspath(filename)
         mdict = {
             "cpos"   : cpos,
             "cvel"   : cvel,
-            "thetas" : theta,
-            "omegas" : omega,
-            "initds" : initds
+            "theta"  : theta,
+            "omega"  : omega,
+            "initd"  : initds
         }
         scipy.io.savemat(filename, mdict, appendmat=True)

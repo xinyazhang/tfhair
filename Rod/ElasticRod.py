@@ -26,7 +26,7 @@ def _dot(tensor1, tensor2, dim=None):
         dim = _lastdim(tensor1)
     return tf.reduce_sum(tf.multiply(tensor1, tensor2), dim, keep_dims=False)
 
-def _trimslices(tensor, dim = 0, margins = [1, 1]):
+def _trimslices(tensor, dim = 1, margins = [1, 1]):
     shape = tensor.get_shape().as_list()
     start = list([0] * len(shape))
     size = list(shape)
@@ -34,7 +34,7 @@ def _trimslices(tensor, dim = 0, margins = [1, 1]):
     size[dim] -= margins[1] + margins[0]
     return tf.slice(tensor, start, size)
 
-def _diffslices(norms, dim = 0):
+def _diffslices(norms, dim = 1):
     en_i_1 = _trimslices(norms, dim, [0, 1])
     en_i = _trimslices(norms, dim, [1, 0])
     return en_i_1, en_i
@@ -50,7 +50,7 @@ def _paddim(tensor):
     return tf.stack([tensor], axis=_lastdim(tensor)+1)
 
 def TFGetEdgeVector(xs):
-    x_i_1, x_i = _diffslices(xs, 0)
+    x_i_1, x_i = _diffslices(xs, 1)
     return x_i - x_i_1
 
 def TFGetEdgeLength(evec):
@@ -59,19 +59,19 @@ def TFGetEdgeLength(evec):
 
 def TFGetVoronoiEdgeLength(enorms):
     en_i_1, en_i = _diffslices(enorms)
-    en_i_1 = tf.pad(enorms, [[0, 1]], 'CONSTANT')
-    en_i = tf.pad(enorms, [[1, 0]], 'CONSTANT')
+    en_i_1 = tf.pad(enorms, [[0, 0], [0, 1]], 'CONSTANT')
+    en_i   = tf.pad(enorms, [[0, 0], [1, 0]], 'CONSTANT')
     return (en_i_1 + en_i) / 2
 
 def TFGetCurvature(ev, enorms):
-    e_i_1, e_i = _diffslices(ev, 0)
-    en_i_1, en_i = _diffslices(enorms, 0)
+    e_i_1, e_i = _diffslices(ev, 1)
+    en_i_1, en_i = _diffslices(enorms,1)
     denominator1 = en_i_1 * en_i
-    denominator2 = tf.reduce_sum(tf.multiply(e_i_1, e_i), 1, keep_dims=False)
+    denominator2 = tf.reduce_sum(tf.multiply(e_i_1, e_i), _lastdim(e_i), keep_dims=False)
     # print("TFGetCurvature: {}".format(denominator2.get_shape()))
     denominator = (denominator1+denominator2)
     shape3 = denominator.get_shape().as_list()
-    denominator = tf.reshape(denominator, [shape3[0],1])
+    denominator = tf.reshape(denominator, [shape3[0],shape3[1], 1])
     return 2 * tf.multiply(tf.cross(e_i_1, e_i), 1.0/(denominator))
 
 def TFGetLengthConstaintFunction(rod):
@@ -185,7 +185,7 @@ def TFRodCCD(crod, nrod, srod, ASelS, BSelS):
     convexity = TFConvexityByList(verts)
     return convexity
 
-class ElasticRod:
+class ElasticRodS:
 
     '''
     Convention of essential ElasticRod members
@@ -194,6 +194,8 @@ class ElasticRod:
     thetas, omegas: 1D n tensor, for twisting/angular velocity on edges w.r.t. reference frame (aka Bishop frame)
             Note, we assumes PIECE-WISE CONSTANT twisting
     tans, refd1s, refd2s: 2D n x 3 tensor, to store reference directions
+
+    ElasticRodS class represents a collection of rods.
     '''
 
     xs = None
@@ -219,15 +221,15 @@ class ElasticRod:
     '''
 
     @staticmethod
-    def CreateInputRod(n, rho = _default_rho):
-        return ElasticRod(
-                xs=tf.placeholder(tf.float32, shape=[n+1, 3], name='xs'),
-                restl=tf.placeholder(tf.float32, shape=[n], name='restl'),
-                xdots=tf.placeholder(tf.float32, shape=[n+1, 3], name='xdots'),
-                thetas=tf.placeholder(tf.float32, shape=[n], name='thetas'),
-                omegas=tf.placeholder(tf.float32, shape=[n], name='omegas'),
-                refd1s=tf.placeholder(tf.float32, shape=[n, 3], name='refd1s'),
-                refd2s=tf.placeholder(tf.float32, shape=[n, 3], name='refd2s'),
+    def CreateInputRodS(n_rods, n_segs, rho = _default_rho):
+        return ElasticRodS(
+                xs=tf.placeholder(tf.float32, shape=[n_rods, n_segs+1, 3], name='xs'),
+                restl=tf.placeholder(tf.float32, shape=[n_rods, n_segs], name='restl'),
+                xdots=tf.placeholder(tf.float32, shape=[n_rods, n_segs+1, 3], name='xdots'),
+                thetas=tf.placeholder(tf.float32, shape=[n_rods, n_segs], name='thetas'),
+                omegas=tf.placeholder(tf.float32, shape=[n_rods, n_segs], name='omegas'),
+                refd1s=tf.placeholder(tf.float32, shape=[n_rods, n_segs, 3], name='refd1s'),
+                refd2s=tf.placeholder(tf.float32, shape=[n_rods, n_segs, 3], name='refd2s'),
                 rho=rho)
 
     def __init__(self, xs, restl, xdots, thetas, omegas, refd1s = None, refd2s = None, rho = _default_rho):
@@ -244,7 +246,7 @@ class ElasticRod:
         self.InitTF() # FIXME(optimization): only needs tans for TFPropogateRefDs
         nxs = self.xs + h * self.xdots
         nthetas = self.thetas + h * self.omegas
-        pseudonrod = ElasticRod(
+        pseudonrod = ElasticRodS(
                 xs=nxs,
                 restl=self.restl,
                 xdots=self.xdots,
@@ -258,7 +260,7 @@ class ElasticRod:
         XForce, TForce = tf.gradients(-E, [pseudonrod.xs, pseudonrod.thetas])
         nxdots = self.xdots + h * XForce / _paddim(self.fullrestvl * self.rho)
         nomegas = self.omegas + h * TForce / (self.restl * self.rho)
-        nrod = ElasticRod(
+        nrod = ElasticRodS(
                 xs=nxs,
                 restl=self.restl,
                 xdots=nxdots,
@@ -275,7 +277,7 @@ class ElasticRod:
     def CalcPenaltyRelaxationTF(self, h, learning_rate=1e-3):
         xs = tf.Variable(np.zeros(shape=self.xs.get_shape().as_list(), dtype=np.float32), name='xs')
         relaxxdots = self.xdots + (xs - self.xs) / h
-        relaxrod = ElasticRod(
+        relaxrod = ElasticRodS(
                 xs=xs,
                 restl=self.restl,
                 xdots=relaxxdots,
@@ -341,7 +343,7 @@ class ElasticRod:
         rod.evec = TFGetEdgeVector(rod.xs)
         rod.tans = _normalize(rod.evec)
         rod.fullrestvl = TFGetVoronoiEdgeLength(rod.restl)
-        rod.innerrestvl = _trimslices(rod.fullrestvl, _lastdim(rod.fullrestvl) - 1, [1, 1])
+        rod.innerrestvl = _trimslices(rod.fullrestvl, _lastdim(rod.fullrestvl), [1, 1])
         rod.ks = TFGetCurvature(rod.evec, rod.restl)
         return rod
 

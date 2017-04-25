@@ -37,6 +37,10 @@ def calculate_rest_length(xs):
     e = xs[1:,:] - xs[0:-1,:]
     return calculate_norms(e)
 
+def calculate_rest_lengths(xs):
+    e = xs[:,1:,:] - xs[:,0:-1,:]
+    return calculate_norms(e)
+
 def calculate_kb(e):
     norms = np.sum(np.abs(e)**2, axis=-1)**(1./2)
     e_i_1 = e[0:-1,:]
@@ -58,7 +62,7 @@ def calculate_parallel_transport(eprev, ethis):
     theta = math.acos(cosine)
     return rotation_matrix(axis, theta)
 
-def calculate_referene_directions(xs, initd1):
+def calculate_reference_directions(xs, initd1):
     e = xs[1:,:] - xs[0:-1,:]
     ebar = normalize(e)
     kb = calculate_kb(e)
@@ -82,13 +86,22 @@ def calculate_referene_directions(xs, initd1):
         prevd2 = d2
     return np.array(d1arr), np.array(d2arr)
 
-def create_TFRod(n):
-    return ElasticRod.ElasticRod.CreateInputRod(n)
+def calculate_batch_reference_directions(xs, initd1s):
+    batch_refd1s = []
+    batch_refd2s = []
+    for i in range(xs.shape[0]):
+        refd1s, refd2s = calculate_reference_directions(xs[i], initd1s[i])
+        batch_refd1s.append(refd1s)
+        batch_refd2s.append(refd2s)
+    return np.array(batch_refd1s), np.array(batch_refd2s)
 
-def create_BCRod(xs, xdots, thetas, omegas, initd1):
-    rl = calculate_rest_length(xs)
-    rod = ElasticRod.ElasticRod(xs=xs, restl=rl, xdots=xdots, thetas=thetas, omegas=omegas)
-    rod.refd1s, rod.refd2s = calculate_referene_directions(xs, initd1)
+def create_TFRodS(n_rods, n_segs):
+    return ElasticRod.ElasticRodS.CreateInputRodS(n_rods, n_segs)
+
+def create_BCRodS(xs, xdots, thetas, omegas, initd1):
+    rl = calculate_rest_lengths(xs)
+    rod = ElasticRod.ElasticRodS(xs=xs, restl=rl, xdots=xdots, thetas=thetas, omegas=omegas)
+    rod.refd1s, rod.refd2s = calculate_batch_reference_directions(xs, initd1)
     return rod
 
 def create_dict(irods, drods):

@@ -390,6 +390,7 @@ class ElasticRodS:
                 rho=self.rho)
         relaxrod.InitTF()
         relaxrod.init_xs = self.xs
+        relaxrod.init_op = tf.assign(relaxrod.xs, relaxrod.init_xs)
         relaxrod.loss = relaxrod.GetEConstaintTF()
         relaxrod.trainer = tf.train.AdamOptimizer(learning_rate)
         relaxrod.grads = relaxrod.trainer.compute_gradients(relaxrod.loss)
@@ -411,9 +412,9 @@ class ElasticRodS:
 
     def Relax(self, sess, irod, icond):
         inputdict = helper.create_dict([irod], [icond])
-        init_xs = sess.run(self.init_xs, feed_dict=inputdict)
+        #init_xs = sess.run(self.init_xs, feed_dict=inputdict)
             #    orod.thetas, orod.omegas], feed_dict=inputdict)
-        sess.run(self.xs.assign(init_xs))
+        sess.run(self.init_op, feed_dict=inputdict)
         for i in range(100):
             # sess.run(self.train_op, feed_dict=inputdict)
             sess.run(self.apply_grads_op, feed_dict=inputdict)

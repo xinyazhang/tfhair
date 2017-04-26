@@ -149,31 +149,45 @@ def TFRodXSel(rod, Sel):
     gxs_i.set_shape([None, 3])
     return gxs_i_1, gxs_i
 
+def TFRodXDotSel(rod, Sel):
+    xdots_i_1, xdots_i = _diffslices(rod.xdots, dim=_lastdim(rod.xdots)-1)
+    gxdots_i_1 = tf.gather_nd(xdots_i_1, Sel)
+    gxdots_i = tf.gather_nd(xdots_i, Sel)
+    # FIXME: More general cases
+    gxdots_i_1.set_shape([None, 3])
+    gxdots_i.set_shape([None, 3])
+    return (gxdots_i_1 + gxdots_i) / 2.0
+
 def TFConvexityByList(tensormat):
     faceconvexity = []
     # print(tensormat[0][0].get_shape())
-    dim = _lastdim(tensormat[0][0]) - 1
-    print('dim {}'.format(dim))
+    # print('dim {}'.format(dim))
     for i in range(len(tensormat)):
         tensorlist = tensormat[i]
         axes = tf.cross(tensorlist[1] - tensorlist[0], tensorlist[2] - tensorlist[0])
         dotsigns = []
         for j in range(3, 6):
             delta = tensorlist[j] - tensorlist[0]
+            dots = _dot(delta, axes)
+            #dots = muls
+            # dots.set_shape([None])
+            signs = tf.sign(dots)
+            dotsigns.append(signs)
             '''
             print('delta shape {}'.format(delta.get_shape()))
             print('axes shape {}'.format(axes.get_shape()))
-            muls = tf.multiply(delta, axes)
-            print('mul shape {}'.format(muls.get_shape()))
-            dots = tf.reduce_sum(muls, 1, keep_dims=False)
             print('dots shape {}'.format(dots.get_shape()))
+            print('signs shape {}'.format(signs.get_shape()))
             '''
-            dotsigns.append(tf.sign(_dot(delta, axes, dim=dim)))
+        # print('dotsigns[0] shape: {}'.format(dotsigns[0].get_shape()))
         faceconvexity.append(tf.equal(dotsigns[0], dotsigns[1]))
         faceconvexity.append(tf.equal(dotsigns[0], dotsigns[2]))
+    # return faceconvexity
     convexity = faceconvexity[0]
+    # print('faceconvexity[0] shape: {}'.format(faceconvexity[0].get_shape()))
     for i in range(1, len(faceconvexity)):
         convexity = tf.logical_and(convexity, faceconvexity[i])
+    # convexity.set_shape([None])
     return convexity
 
 def TFRodCCD(crod, nrod, srod, ASelS, BSelS):
@@ -188,10 +202,13 @@ def TFRodCCD(crod, nrod, srod, ASelS, BSelS):
           Check tf.gather for more details
     Note: assumes 2 now, 4 may use TFRodSCCD
     '''
-    ''' Gathered Current Xs'''
+    ''' Gathered Current Xs '''
     gcxs_k_1, gcxs_k = TFRodXSel(crod, ASelS)
+    # print(gcxs_k.get_shape())
+    # return tf.shape(gcxs_k)
+    ''' Gathered Next Xs '''
     gnxs_k_1, gnxs_k = TFRodXSel(nrod, ASelS)
-    npoles, spoles = TFRodXSel(srod, BSelS)
+    npoles, spoles = TFRodXSel(srod, BSelS) # FIXME: use srod based reference system 
     verts = [
             [npoles, gcxs_k_1, gcxs_k, gnxs_k, gnxs_k_1, spoles],
             [npoles, gcxs_k, gnxs_k, gnxs_k_1, gcxs_k_1, spoles],
@@ -205,6 +222,27 @@ def TFRodCCD(crod, nrod, srod, ASelS, BSelS):
     # return verts[0]
     convexity = TFConvexityByList(verts)
     return convexity
+
+def ConvexityFilter(SelS_in, convexity):
+    return tf.gather_nd(SelS_in, tf.where(tf.equal(convexity, True)))
+
+# TODO: merge with TFRodCCD
+def TFRodCollisionImpulse(h, crod, nrod, srod, ASelS_in, BSelS_in, convexity):
+    ASelS = ConvexityFilter(ASelS_in, convexity)
+    BSelS = ConvexityFilter(BSelS_in, convexity)
+    ''' Gathered Current Xs '''
+    gcxs_k_1, gcxs_k = TFRodXSel(crod, ASelS)
+    ''' Gathered Next Xs '''
+    gnxs_k_1, gnxs_k = TFRodXSel(nrod, ASelS)
+    gqdots = ((gnxs_k_1 - gcxs_k_1) + (gnxs_k - gcxs_k)) / (2 * h)
+    # return tf.shape(gnxs_k_1)
+    # return tf.shape(gqdots)
+    grqdots = TFRodXDotSel(srod, BSelS)
+    relqdots = gqdots - grqdots
+    gtans = tf.gather_nd(srod.tans, BSelS)
+    gtans.set_shape([None, 3])
+    gnormals = tf.cross(tf.cross(gtans, relqdots), gtans)
+    return 2 * h * gnormals
 
 class ElasticRodS:
 
@@ -314,7 +352,7 @@ class ElasticRodS:
         nrod.InitTF()
         return nrod
 
-    def CalcPenaltyRelaxationTF(self, h, learning_rate=1e-3):
+    def CalcPenaltyRelaxationTF(self, h, learning_rate=1e-4):
         xs = tf.Variable(np.zeros(shape=self.xs.get_shape().as_list(), dtype=np.float32), name='xs')
         relaxxdots = self.xdots + (xs - self.xs) / h
         relaxrod = ElasticRodS(
@@ -361,7 +399,8 @@ class ElasticRodS:
             if i % 1 == 0:
                 E = sess.run(self.loss, feed_dict=inputdict)
                 # print('loss (iter:{}): {}'.format(i, E))
-                if math.fabs(E) < 1e-7:
+                if math.fabs(E) < 1e-9:
+                    # print('Leaving at Iter {}'.format(i))
                     break
             '''
             if i % 100 == 0:

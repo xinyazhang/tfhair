@@ -59,6 +59,7 @@ def calculate_parallel_transport(eprev, ethis):
         return np.identity(3)
     axis = vector
     cosine = np.dot(eprev, ethis)
+    cosine = max(-1.0, min(1.0, cosine))    # sometimes there is 1+epsilon
     theta = math.acos(cosine)
     return rotation_matrix(axis, theta)
 

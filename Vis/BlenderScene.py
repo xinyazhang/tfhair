@@ -150,7 +150,7 @@ class HairScene(Scene):
             d2 = mathutils.Vector([1, 0, 0])
             if d1.cross(d2).length == 0:
                 d2 = mathutils.Vector([0, 1, 0])
-            d3 = d1.cross(d2)
+            d3 = d1.cross(d2).normalized()
             initds[i,:] = np.array(d3)
 
         filename = os.path.abspath(filename)

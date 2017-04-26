@@ -56,11 +56,6 @@ def run_hair_test(matfile):
     mdict = {}
     scipy.io.loadmat(matfile, mdict)
 
-    n_rods = 2
-    n_segs = 5
-    h = 1.0/1024.0
-    rho = 1.0
-
     xs = mdict["cpos"]
     xdots = mdict["cvel"]
     thetas = mdict["theta"]
@@ -72,6 +67,11 @@ def run_hair_test(matfile):
             omegas=omegas,
             initd1=initd1
     )
+
+    n_rods, n_segs = thetas.shape
+    h = 1.0/1024.0
+    rho = 1.0
+
     run_with_bc(n_rods, n_segs, h, rho, icond, '/tmp/tfhair')
 
 if __name__ == "__main__":

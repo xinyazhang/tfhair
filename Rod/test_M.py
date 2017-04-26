@@ -21,7 +21,7 @@ def run_with_bc(n, h, rho, icond, path):
     orod = irod.CalcNextRod(h)
     rrod = orod.CalcPenaltyRelaxationTF(h)
 
-    pfe = TFGetEConstaint(irod)
+    # pfe = TFGetEConstaint(irod)
     saver = helper.RodSaver(path)
     with tf.Session() as sess:
         sess.run(tf.global_variables_initializer())

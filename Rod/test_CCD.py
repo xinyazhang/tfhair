@@ -24,11 +24,15 @@ def run_with_bc(n, h, crod_data, nrod_data, srod_data):
     selb = tf.placeholder(shape=[None, 1], dtype=tf.int32)
 
     convexity = TFRodCCD(crod, nrod, srod, sela, selb)
-    #convexity = tf.reshape(convexity, [1])
+    # convexity = tf.reshape(convexity, [1])
     # print(convexity)
     # convexity.set_shape([1])
     # sel = tf.where(tf.equal(convexity, True))
-    impulse = TFRodCollisionImpulse(h, crod, nrod, srod, sela, selb, convexity)
+    impulse_with_sel = TFRodCollisionImpulse(h, crod, nrod, srod, sela, selb)
+    impulse = impulse_with_sel[0]
+    # ASelS = impulse_with_sel[1]
+    # BSelS = impulse_with_sel[2]
+    # impulsed_rods = TFApplyImpulse(h, nrod, ASelS, BSelS, impulse)
     # seltest1 = TFRodXSel(crod, sela)
     sela_data = [[i] for i in range(len(crod_data.xs)-1)]
     selb_data = [[i] for i in range(len(srod_data.xs)-1)]
@@ -105,6 +109,11 @@ def run_test0():
     xsv = np.array([
         [-1.5,0.5,0.0],
         [0.0,0.5,0.0],
+        ])
+    test_static_rods(xs, xs2, xsv, True)
+    xsv = np.array([
+        [-0.5, 0.0,-0.5],
+        [-0.5, 1.0, 0.5],
         ])
     test_static_rods(xs, xs2, xsv, True)
 

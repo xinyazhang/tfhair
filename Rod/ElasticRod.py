@@ -190,7 +190,7 @@ def TFConvexityByList(tensormat):
     # convexity.set_shape([None])
     return convexity
 
-def TFRodCCD(crod, nrod, srod, ASelS, BSelS):
+def TFRodCCDExtended(crod, nrod, srod, ASelS, BSelS):
 
     '''
     Continus Collision Detection between Rod A and Rod B
@@ -219,30 +219,51 @@ def TFRodCCD(crod, nrod, srod, ASelS, BSelS):
             [spoles, gnxs_k, gnxs_k_1, gcxs_k_1, gcxs_k, npoles],
             [spoles, gnxs_k_1, gcxs_k_1, gcxs_k, gnxs_k, npoles]
             ]
-    # return verts[0]
+    # return [verts[0]]
     convexity = TFConvexityByList(verts)
-    return convexity
+    return convexity, gcxs_k_1, gcxs_k, gnxs_k_1, gnxs_k
+
+def TFRodCCD(crod, nrod, srod, ASelS, BSelS):
+    a_list = TFRodCCDExtended(crod, nrod, srod, ASelS, BSelS)
+    return a_list[0]
 
 def ConvexityFilter(SelS_in, convexity):
     return tf.gather_nd(SelS_in, tf.where(tf.equal(convexity, True)))
 
 # TODO: merge with TFRodCCD
-def TFRodCollisionImpulse(h, crod, nrod, srod, ASelS_in, BSelS_in, convexity):
+def TFRodCollisionImpulse(h, crod, nrod, srod, ASelS_in, BSelS_in, convexity = None):
+    gcxs_k = None
+    if convexity is None:
+        convexity, gcxs_k_1, gcxs_k, gnxs_k_1, gnxs_k = TFRodCCDExtended(crod, nrod, srod, ASelS_in, BSelS_in)
     ASelS = ConvexityFilter(ASelS_in, convexity)
     BSelS = ConvexityFilter(BSelS_in, convexity)
-    ''' Gathered Current Xs '''
-    gcxs_k_1, gcxs_k = TFRodXSel(crod, ASelS)
-    ''' Gathered Next Xs '''
-    gnxs_k_1, gnxs_k = TFRodXSel(nrod, ASelS)
+    if gcxs_k is None:
+        ''' Gathered Current Xs '''
+        gcxs_k_1, gcxs_k = TFRodXSel(crod, ASelS)
+        ''' Gathered Next Xs '''
+        gnxs_k_1, gnxs_k = TFRodXSel(nrod, ASelS)
     gqdots = ((gnxs_k_1 - gcxs_k_1) + (gnxs_k - gcxs_k)) / (2 * h)
     # return tf.shape(gnxs_k_1)
     # return tf.shape(gqdots)
     grqdots = TFRodXDotSel(srod, BSelS)
     relqdots = gqdots - grqdots
     gtans = tf.gather_nd(srod.tans, BSelS)
-    gtans.set_shape([None, 3])
-    gnormals = tf.cross(tf.cross(gtans, relqdots), gtans)
-    return 2 * h * gnormals
+    # return relqdots
+    # return gtans
+    #gtans.set_shape([None, 3])
+    gnormals = tf.cross(gtans, tf.cross(gtans, relqdots))
+    return h * gnormals, ASelS, BSelS
+
+def TFApplyImpulse(h, rods, ASelS, BSelS, impulse):
+    # deltaVB = tf.SparseTensor(BSelS, -impulse)
+    # delta = deltaVA + deltaVB
+    # deltaVA = tf.SparseTensor(ASelS, impulse * 2, dense_shape=rods.xs.get_shape())
+    # delta = deltaVA
+    nrods = rods
+    nrods.xs = tf.scatter_add(nrods.xs, ASelS, impulse * h)
+    nrods.xdots = tf.scatter_add(nrods.xdots, ASelS, impulse)
+    TFPropogateRefDs(rods, nrods, normalize=True)
+    return nrods
 
 class ElasticRodS:
 

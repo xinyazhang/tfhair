@@ -410,16 +410,15 @@ class ElasticRodS:
     def UpdateVariable(self, vl):
         [self.xs, self.xdots, self.thetas, self.omegas, self.refd1s, self.refd2s] = vl
 
-    def Relax(self, sess, irod, icond):
+    def Relax(self, sess, irod, icond, options=None, run_metadata=None):
         inputdict = helper.create_dict([irod], [icond])
         #init_xs = sess.run(self.init_xs, feed_dict=inputdict)
             #    orod.thetas, orod.omegas], feed_dict=inputdict)
-        sess.run(self.init_op, feed_dict=inputdict)
+        sess.run(self.init_op, feed_dict=inputdict, options=options, run_metadata=run_metadata)
         for i in range(100):
             # sess.run(self.train_op, feed_dict=inputdict)
-            sess.run(self.apply_grads_op, feed_dict=inputdict)
+            E, _ = sess.run([self.loss, self.apply_grads_op], feed_dict=inputdict, options=options, run_metadata=run_metadata)
             if i % 1 == 0:
-                E = sess.run(self.loss, feed_dict=inputdict)
                 # print('loss (iter:{}): {}'.format(i, E))
                 if math.fabs(E) < 1e-9:
                     # print('Leaving at Iter {}'.format(i))
@@ -429,7 +428,7 @@ class ElasticRodS:
                 E = sess.run(self.loss, feed_dict=inputdict)
                 print('loss: {}'.format(E))
             '''
-        vl = sess.run(self.GetVariableList(), feed_dict=inputdict)
+        vl = sess.run(self.GetVariableList(), feed_dict=inputdict, options=options, run_metadata=run_metadata)
         icond.UpdateVariable(vl)
         return icond
 

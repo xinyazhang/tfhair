@@ -43,12 +43,12 @@ def run_with_bc(n_rods, n_segs, h, rho, icond, path):
                     [icond.refd1s],
                     [icond.refd2s])
                 xs, xdots, thetas, omegas = sess.run([orod.xs, orod.xdots,
-                   orod.thetas, orod.omegas], feed_dict=inputdict)
+                   orod.thetas, orod.omegas], feed_dict=inputdict, options=run_options, run_metadata=run_metadata)
                 # print(pfe.eval(feed_dict=inputdict))
                 # print(orod.XForce.eval(feed_dict=inputdict))
                 # print("xdots {}".format(xdots))
                 # print("thetas {}".format(icond.thetas))
-                icond = rrod.Relax(sess, irod, icond)
+                icond = rrod.Relax(sess, irod, icond, options=run_options, run_metadata=run_metadata)
                 # print("refd1s {}".format(icond.refd1s))
                 # print("refd2s {}".format(icond.refd2s))
                 progress.update(frame+1)

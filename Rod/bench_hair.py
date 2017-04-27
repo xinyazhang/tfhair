@@ -12,6 +12,7 @@ import scipy.io
 import math
 from math import pi
 import progressbar
+from tensorflow.python.client import timeline
 
 def run_with_bc(n_rods, n_segs, h, rho, icond, path):
     '''
@@ -26,6 +27,8 @@ def run_with_bc(n_rods, n_segs, h, rho, icond, path):
     pfe = TFGetEConstaint(irod)
     saver = helper.RodSaver(path)
     with tf.Session() as sess:
+        run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
+        run_metadata = tf.RunMetadata()
         sess.run(tf.global_variables_initializer())
         nframe = 720
         # nframe = 10
@@ -49,6 +52,10 @@ def run_with_bc(n_rods, n_segs, h, rho, icond, path):
                 # print("refd1s {}".format(icond.refd1s))
                 # print("refd2s {}".format(icond.refd2s))
                 progress.update(frame+1)
+        tl = timeline.Timeline(run_metadata.step_stats)
+        ctf = tl.generate_chrome_trace_format()
+        with open('/tmp/bench_hair.json', 'w') as f:
+            f.write(ctf)
 
     saver.close()
 

@@ -75,6 +75,11 @@ class Scene(object):
         self.scene.frame_end = max(self.scene.frame_end, keyframe)
 
     def Load(self, frame, filename):
+        mdict = {}
+        scipy.io.loadmat(filename, mdict)
+        self.Update(frame, mdict)
+
+    def Update(self, frame, mdict):
         pass
 
 def _expand_to(tensor, to):
@@ -88,11 +93,6 @@ class RodScene(Scene):
         super(RodScene, self).__init__(fps, scene)
         self.number = scene
         self.rods =None
-
-    def Load(self, frame, filename):
-        mdict = {}
-        scipy.io.loadmat(filename, mdict)
-        self.Update(frame, mdict)
 
     def Update(self, frame, data):
         keyframe = self.ComputeKeyframe(frame)
@@ -122,12 +122,28 @@ class HairScene(Scene):
     def __init__(self, fps, scene=0):
         super(HairScene, self).__init__(fps, scene)
         self.number = scene
-
-    def Load(self, frame, filename):
-        pass
+        self.scene.tool_settings.use_keyframe_insert_auto = True
 
     def Update(self, frame, data):
-        pass
+        keyframe = self.ComputeKeyframe(frame)
+        self.SetDuration(frame)
+
+        xs = _expand_to(data["cpos"], 4)
+        ts = _expand_to(data["thetas"], 3)
+        refd1s = _expand_to(data["refd1s"], 4)
+        refd2s = _expand_to(data["refd2s"], 4)
+        n_batch, n_rods, n_centerpoints, _ = xs.shape
+
+        obj = bpy.context.object
+        hairs = obj.particle_systems[0].particles
+        n_rods = len(hairs)
+        n_segs = len(hairs[0].hair_keys) - 1
+
+        self.SetFrame(keyframe)
+        for i, h in enumerate(hairs):
+            for j, hv in enumerate(h.hair_keys):
+                # hv.co = mathutils.Vector(xs[0,i,j,:])
+                hv.co = mathutils.Vector([10 + frame * 10, 10, 10 + 2 * j])
 
     def Dump(self, filename):
         obj = bpy.context.object
@@ -136,7 +152,7 @@ class HairScene(Scene):
         n_segs = len(hairs[0].hair_keys) - 1
         # create numpy tensors
         cpos = np.zeros(shape=(n_rods, n_segs+1, 3), dtype=np.float32)
-        cvel = np.zeros(shape=(n_rods, n_segs+1, 3), dtype=np.float32)
+        cvel = np.ones(shape=(n_rods, n_segs+1, 3), dtype=np.float32)
         theta = np.zeros(shape=(n_rods, n_segs), dtype=np.float32)
         omega = np.zeros(shape=(n_rods, n_segs), dtype=np.float32)
         initds = np.zeros(shape=(n_rods, 3), dtype=np.float32)

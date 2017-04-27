@@ -42,6 +42,16 @@ def Setup(options, args):
     scene = HairScene(options.fps)
     if options.dump is not None:
         scene.Dump(options.dump)
+    else:
+        print("Load from {}".format(args[0]))
+        path = args[0]
+        for name in filter(lambda x: ".mat" in x, os.listdir(path)):
+            frame = int(name.strip(".mat"))
+            filepath = os.path.join(path, name)
+            scene.Load(frame, filepath)
+            print("Loaded frame {}".format(frame))
+            break
+        scene.SetFrame(0)
 
 @persistent
 def LoadBlendCallback(scene):

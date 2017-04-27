@@ -131,8 +131,8 @@ def TFPropogateRefDs(prod, crod, normalize=False):
     R = tf.stack([row1, row2, row3], axis=lastdim)
     shape = prod.refd1s.get_shape()
     # print('prod.refd1s shape {}'.format(shape))
-    refd1s = tf.stack([prod.refd1s], axis=_lastdim(prod.refd1s)+1)
-    refd2s = tf.stack([prod.refd2s], axis=_lastdim(prod.refd2s)+1)
+    refd1s = _paddim(prod.refd1s)
+    refd2s = _paddim(prod.refd2s)
     crod.refd1s = tf.reshape(tf.matmul(R, refd1s), shape)
     crod.refd2s = tf.reshape(tf.matmul(R, refd2s), shape)
     if normalize:
@@ -255,15 +255,19 @@ def TFRodCollisionImpulse(h, crod, nrod, srod, ASelS_in, BSelS_in, convexity = N
     return h * gnormals, ASelS, BSelS
 
 def TFApplyImpulse(h, rods, ASelS, BSelS, impulse):
+    # TODO: apply impulse to Rod B
     # deltaVB = tf.SparseTensor(BSelS, -impulse)
     # delta = deltaVA + deltaVB
     # deltaVA = tf.SparseTensor(ASelS, impulse * 2, dense_shape=rods.xs.get_shape())
     # delta = deltaVA
-    nrods = rods
-    nrods.xs = tf.scatter_add(nrods.xs, ASelS, impulse * h)
-    nrods.xdots = tf.scatter_add(nrods.xdots, ASelS, impulse)
-    TFPropogateRefDs(rods, nrods, normalize=True)
-    return nrods
+    leftnode = tf.scatter_nd_add(rods.xs, ASelS, impulse * 2)
+    return tf.scatter_nd_add(leftnode, ASelS + tf.constant([0,1]), impulse * 2)
+    # nrods.xdots = tf.scatter_add(nrods.xdots, ASelS, impulse)
+    # TFPropogateRefDs(rods, nrods, normalize=True)
+    '''
+    Note we don't need to change xdots or others, this is an optimizaiton procedure
+    '''
+    # return nrods
 
 class ElasticRodS:
 
@@ -410,24 +414,32 @@ class ElasticRodS:
     def UpdateVariable(self, vl):
         [self.xs, self.xdots, self.thetas, self.omegas, self.refd1s, self.refd2s] = vl
 
-    def Relax(self, sess, irod, icond, options=None, run_metadata=None):
+    def Relax(self, sess, irod, icond, ccd_h=None, SelS=None, options=None, run_metadata=None):
+        h = ccd_h
         inputdict = helper.create_dict([irod], [icond])
-        #init_xs = sess.run(self.init_xs, feed_dict=inputdict)
-            #    orod.thetas, orod.omegas], feed_dict=inputdict)
         sess.run(self.init_op, feed_dict=inputdict, options=options, run_metadata=run_metadata)
-        for i in range(100):
-            # sess.run(self.train_op, feed_dict=inputdict)
-            E, _ = sess.run([self.loss, self.apply_grads_op], feed_dict=inputdict, options=options, run_metadata=run_metadata)
-            if i % 1 == 0:
-                # print('loss (iter:{}): {}'.format(i, E))
-                if math.fabs(E) < 1e-9:
-                    # print('Leaving at Iter {}'.format(i))
+        while True:
+            #init_xs = sess.run(self.init_xs, feed_dict=inputdict)
+                #    orod.thetas, orod.omegas], feed_dict=inputdict)
+            for i in range(100):
+                # sess.run(self.train_op, feed_dict=inputdict)
+                E, _ = sess.run([self.loss, self.apply_grads_op], feed_dict=inputdict, options=options, run_metadata=run_metadata)
+                if i % 1 == 0:
+                    # print('loss (iter:{}): {}'.format(i, E))
+                    if math.fabs(E) < 1e-9:
+                        # print('Leaving at Iter {}'.format(i))
+                        break
+                '''
+                if i % 100 == 0:
+                    E = sess.run(self.loss, feed_dict=inputdict)
+                    print('loss: {}'.format(E))
+                '''
+            if h is not None:
+                ccddict = helper.create_dict([irod], [icond])
+                ccddict.update({self.sela: SelS[0], self.selb: SelS[1]})
+                leaving = self.DetectAndApplyImpulse(sess, h, ccddict)
+                if leaving:
                     break
-            '''
-            if i % 100 == 0:
-                E = sess.run(self.loss, feed_dict=inputdict)
-                print('loss: {}'.format(E))
-            '''
         vl = sess.run(self.GetVariableList(), feed_dict=inputdict, options=options, run_metadata=run_metadata)
         icond.UpdateVariable(vl)
         return icond
@@ -489,6 +501,24 @@ class ElasticRodS:
         avexdot = 0.5 * (xdot_i_1 + xdot_i)
         sqnorm = tf.reduce_sum(tf.multiply(avexdot, avexdot), 1, keep_dims=False)
         return 0.5 * tf.reduce_sum(rod.restl * sqnorm)
+
+    # TODO: Node to Calculate sela/selb
+    def CreateCCDNode(self, irod, h):
+        self.sela = tf.placeholder(shape=[None, 2], dtype=tf.int32)
+        self.selb = tf.placeholder(shape=[None, 2], dtype=tf.int32)
+        self.impulse_with_sels = TFRodCollisionImpulse(h, irod, self, self, self.sela, self.selb)
+        self.appled_xs = TFApplyImpulse(h, self, self.impulse_with_sels[1], self.impulse_with_sels[2], self.impulse_with_sels[0])
+        self.apply_impulse_op = tf.assign(self.xs, self.appled_xs)
+        # print(self.apply_impulse_op)
+        return self
+
+    def DetectAndApplyImpulse(self, sess, h, inputdict):
+        # print('xs before impulse {}'.format(sess.run(self.xs, feed_dict=inputdict)))
+        sel,_ = sess.run([self.impulse_with_sels[1], self.apply_impulse_op], feed_dict=inputdict)
+        # print(sess.run(self.impulse_with_sels, feed_dict=inputdict))
+        # print('xs after impulse {}'.format(sess.run(self.xs, feed_dict=inputdict)))
+        return len(sel) == 0
+        # return True
 
 def TFInitRod(rod):
     return rod.InitTF()

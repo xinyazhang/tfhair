@@ -74,6 +74,9 @@ class Scene(object):
     def SetDuration(self, keyframe):
         self.scene.frame_end = max(self.scene.frame_end, keyframe)
 
+    def SetEndFrame(self, keyframe):
+        self.scene.frame_end = keyframe
+
     def Load(self, frame, filename):
         mdict = {}
         scipy.io.loadmat(filename, mdict)
@@ -123,10 +126,25 @@ class HairScene(Scene):
         super(HairScene, self).__init__(fps, scene)
         self.number = scene
         self.scene.tool_settings.use_keyframe_insert_auto = True
+        self.cache_path = None
+        self.loaded_frames = set()
+        self.last_loaded = None
+
+    def SetCachePath(self, path):
+        self.cache_path = path
+
+    def IsFrameLoaded(self, frame):
+        return frame in self.loaded_frames
+
+    def Load(self, frame, filename):
+        if self.last_loaded == frame:
+            return
+        self.last_loaded = frame
+        super(HairScene, self).Load(frame, filename)
 
     def Update(self, frame, data):
+        print("Update frame {}".format(frame))
         keyframe = self.ComputeKeyframe(frame)
-        self.SetDuration(frame)
 
         xs = _expand_to(data["cpos"], 4)
         ts = _expand_to(data["thetas"], 3)
@@ -135,15 +153,15 @@ class HairScene(Scene):
         n_batch, n_rods, n_centerpoints, _ = xs.shape
 
         obj = bpy.context.object
-        hairs = obj.particle_systems[0].particles
+        particle_system = obj.particle_systems[0]
+        hairs = particle_system.particles
         n_rods = len(hairs)
         n_segs = len(hairs[0].hair_keys) - 1
 
-        self.SetFrame(keyframe)
         for i, h in enumerate(hairs):
             for j, hv in enumerate(h.hair_keys):
-                # hv.co = mathutils.Vector(xs[0,i,j,:])
-                hv.co = mathutils.Vector([10 + frame * 10, 10, 10 + 2 * j])
+                hv.co = mathutils.Vector(xs[0,i,j,:])
+                # hv.co = hv.co + mathutils.Vector([0,0,j])
 
     def Dump(self, filename):
         obj = bpy.context.object
@@ -152,7 +170,7 @@ class HairScene(Scene):
         n_segs = len(hairs[0].hair_keys) - 1
         # create numpy tensors
         cpos = np.zeros(shape=(n_rods, n_segs+1, 3), dtype=np.float32)
-        cvel = np.ones(shape=(n_rods, n_segs+1, 3), dtype=np.float32)
+        cvel = np.zeros(shape=(n_rods, n_segs+1, 3), dtype=np.float32)
         theta = np.zeros(shape=(n_rods, n_segs), dtype=np.float32)
         omega = np.zeros(shape=(n_rods, n_segs), dtype=np.float32)
         initds = np.zeros(shape=(n_rods, 3), dtype=np.float32)

@@ -22,6 +22,8 @@ sys.path.append(script_path)
 from BlenderScene import *
 from BlenderObject import *
 
+scene = None
+
 def ParseArgs():
     parser = optparse.OptionParser()
     parser.add_option("", "--fps", dest="fps", default=1000.0, type=float, help="set fps for rendering")
@@ -38,23 +40,32 @@ def LoadBlend(filename):
 def SaveBlend(filename):
     bpy.ops.wm.save_as_mainfile(filepath=filename)
 
+@persistent
+def LoadFrameCallback(scn):
+    path = scene.cache_path
+    frame = scn.frame_current
+
+    filepath = os.path.join(path, "%d.mat" % frame)
+    if os.path.exists(filepath):
+        scene.Load(frame, filepath)
+
 def Setup(options, args):
+    global scene
     scene = HairScene(options.fps)
     if options.dump is not None:
         scene.Dump(options.dump)
     else:
-        print("Load from {}".format(args[0]))
-        path = args[0]
-        for name in filter(lambda x: ".mat" in x, os.listdir(path)):
-            frame = int(name.strip(".mat"))
-            filepath = os.path.join(path, name)
-            scene.Load(frame, filepath)
-            print("Loaded frame {}".format(frame))
-            break
-        scene.SetFrame(0)
+        scene.SetCachePath(args[0])
+        bpy.app.handlers.frame_change_pre.append(LoadFrameCallback)
+
+        path = scene.cache_path
+        names = filter(lambda x: ".mat" in x, os.listdir(path))
+        frames = map(lambda x: int(x.strip(".mat")), names)
+        end_frame = max(frames) + 1
+        scene.SetEndFrame(end_frame)
 
 @persistent
-def LoadBlendCallback(scene):
+def LoadBlendCallback(scn):
     """Fix bpy.context if some command (like .blend import) changed/emptied it"""
     for window in bpy.context.window_manager.windows:
         screen = window.screen

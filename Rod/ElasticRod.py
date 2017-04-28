@@ -440,6 +440,8 @@ class ElasticRodS:
                 leaving = self.DetectAndApplyImpulse(sess, h, ccddict)
                 if leaving:
                     break
+            else:
+                break
         vl = sess.run(self.GetVariableList(), feed_dict=inputdict, options=options, run_metadata=run_metadata)
         icond.UpdateVariable(vl)
         return icond

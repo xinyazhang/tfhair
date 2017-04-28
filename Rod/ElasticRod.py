@@ -145,8 +145,8 @@ def TFRodXSel(rod, Sel):
     gxs_i_1 = tf.gather_nd(xs_i_1, Sel)
     gxs_i = tf.gather_nd(xs_i, Sel)
     # FIXME: More general cases
-    gxs_i_1.set_shape([None, 3])
-    gxs_i.set_shape([None, 3])
+    # gxs_i_1.set_shape([None, 3])
+    # gxs_i.set_shape([None, 3])
     return gxs_i_1, gxs_i
 
 def TFRodXDotSel(rod, Sel):
@@ -154,8 +154,8 @@ def TFRodXDotSel(rod, Sel):
     gxdots_i_1 = tf.gather_nd(xdots_i_1, Sel)
     gxdots_i = tf.gather_nd(xdots_i, Sel)
     # FIXME: More general cases
-    gxdots_i_1.set_shape([None, 3])
-    gxdots_i.set_shape([None, 3])
+    # gxdots_i_1.set_shape([None, 3])
+    # gxdots_i.set_shape([None, 3])
     return (gxdots_i_1 + gxdots_i) / 2.0
 
 def TFConvexityByList(tensormat):
@@ -252,16 +252,23 @@ def TFRodCollisionImpulse(h, crod, nrod, srod, ASelS_in, BSelS_in, convexity = N
     # return gtans
     #gtans.set_shape([None, 3])
     gnormals = tf.cross(gtans, tf.cross(gtans, relqdots))
-    return h * gnormals, ASelS, BSelS
+    gmass = _paddim(tf.gather_nd(nrod.restl, ASelS))
+    print('gmass: {}'.format(gmass))
+    return h * gnormals * gmass, ASelS, BSelS, gmass
 
-def TFApplyImpulse(h, rods, ASelS, BSelS, impulse):
+def TFApplyImpulse(h, rods, ASelS, BSelS, impulse, gAmass):
     # TODO: apply impulse to Rod B
     # deltaVB = tf.SparseTensor(BSelS, -impulse)
     # delta = deltaVA + deltaVB
     # deltaVA = tf.SparseTensor(ASelS, impulse * 2, dense_shape=rods.xs.get_shape())
     # delta = deltaVA
+    indices = tf.concat([ASelS, ASelS + tf.constant([0,1]), BSelS, BSelS + tf.constant([0,1])], axis=0)
+    impulse_to_A = impulse / gAmass
+    gBmass = _paddim(tf.gather_nd(rods.restl, BSelS))
+    impulse_to_B = impulse / gBmass
+    updates = tf.concat([impulse_to_A, impulse_to_A, -impulse_to_B, -impulse_to_B], axis=0)
     leftnode = tf.scatter_nd_add(rods.xs, ASelS, impulse * 2)
-    return tf.scatter_nd_add(leftnode, ASelS + tf.constant([0,1]), impulse * 2)
+    return tf.scatter_nd_add(rods.xs, indices, updates)
     # nrods.xdots = tf.scatter_add(nrods.xdots, ASelS, impulse)
     # TFPropogateRefDs(rods, nrods, normalize=True)
     '''
@@ -509,7 +516,12 @@ class ElasticRodS:
         self.sela = tf.placeholder(shape=[None, 2], dtype=tf.int32)
         self.selb = tf.placeholder(shape=[None, 2], dtype=tf.int32)
         self.impulse_with_sels = TFRodCollisionImpulse(h, irod, self, self, self.sela, self.selb)
-        self.appled_xs = TFApplyImpulse(h, self, self.impulse_with_sels[1], self.impulse_with_sels[2], self.impulse_with_sels[0])
+        self.appled_xs = TFApplyImpulse(h, self,\
+                self.impulse_with_sels[1],\
+                self.impulse_with_sels[2],\
+                self.impulse_with_sels[0],\
+                self.impulse_with_sels[3] \
+                )
         self.apply_impulse_op = tf.assign(self.xs, self.appled_xs)
         # print(self.apply_impulse_op)
         return self

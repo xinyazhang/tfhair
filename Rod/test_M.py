@@ -17,6 +17,7 @@ def run_with_bc(n, h, rho, icond, path):
     '''
     tf.reset_default_graph()
     irod = helper.create_TFRod(n)
+    irod.clone_args_from(icond)
 
     orod = irod.CalcNextRod(h)
     rrod = orod.CalcPenaltyRelaxationTF(h)
@@ -230,6 +231,38 @@ def run_test5():
             )
     run_with_bc(n, h, rho, icond, '/tmp/tftest5')
 
+def run_test6():
+    '''
+    Test 6: bending force with gravity
+    '''
+    n = 3
+    h = 1.0/1024.0
+    rho = 1.0
+
+    xs = np.array([
+        [-1,0,  5],
+        [0,0,   5],
+        [0,-1,  5],
+        [-1,-1, 5],
+        ])
+    xdots = np.array([
+        [0,0,0],
+        [0,0,0],
+        [0,0,0],
+        [0,0,0],
+        ])
+    thetas = np.zeros(shape=[n], dtype=np.float32)
+    omegas = np.zeros(shape=[n], dtype=np.float32)
+    icond = helper.create_BCRod(xs=xs,
+            xdots=xdots,
+            thetas=thetas,
+            omegas=omegas,
+            initd1=np.array([0,1,0])
+            )
+    icond.g = 9.8
+    icond.floor_z = -5.0
+    run_with_bc(n, h, rho, icond, '/tmp/tftest6')
+
 def run():
     run_test0()
     run_test1()
@@ -239,4 +272,4 @@ def run():
     run_test5()
 
 if __name__ == '__main__':
-    run()
+    run_test6()

@@ -310,6 +310,18 @@ class ElasticRodS:
     rho = _default_rho
     alpha = 1.0
     beta = 1.0
+    g = 0.0
+    floor_z = -50.0
+
+    def clone_args_from(self, other):
+        if other is None:
+            return self
+        self.rho = other.rho
+        self.alpha = other.alpha
+        self.beta = other.beta
+        self.g = other.g
+        self.floor_z = other.floor_z
+        return self
 
     c = None # Translation
     q = None # Rotation quaternion
@@ -355,7 +367,7 @@ class ElasticRodS:
         self.rho = rho
 
     def CalcNextRod(self, h):
-        self.InitTF() # FIXME(optimization): only needs tans for TFPropogateRefDs
+        self.InitTF(None) # FIXME(optimization): only needs tans for TFPropogateRefDs
         nxs = self.xs + h * self.xdots
         nthetas = self.thetas + h * self.omegas
         pseudonrod = ElasticRodS(
@@ -365,10 +377,13 @@ class ElasticRodS:
                 thetas=nthetas,
                 omegas=self.omegas,
                 rho=self.rho)
-        pseudonrod.InitTF()
+        pseudonrod.InitTF(self)
         if (not self.refd1s is None) and (not self.refd2s is None):
             TFPropogateRefDs(self, pseudonrod)
-        E = self.alpha * pseudonrod.GetEBendTF() + self.beta * pseudonrod.GetETwistTF() # + _stiff * pseudonrod.GetEConstaintTF()
+        E = self.alpha * pseudonrod.GetEBendTF() \
+                + self.beta * pseudonrod.GetETwistTF() \
+                + pseudonrod.GetEGravityTF() \
+                # + _stiff * pseudonrod.GetEConstaintTF()
         # print('E: {}'.format(E))
         # print('pseudonrod.xs: {}'.format(pseudonrod.xs))
         # print('pseudonrod.thetas: {}'.format(pseudonrod.thetas))
@@ -390,7 +405,7 @@ class ElasticRodS:
                 rho=self.rho)
         nrod.XForce = XForce
         nrod.TForce = TForce
-        nrod.InitTF()
+        nrod.InitTF(pseudonrod)
         return nrod
 
     def CalcPenaltyRelaxationTF(self, h, learning_rate=1e-4):
@@ -408,7 +423,7 @@ class ElasticRodS:
                 #refd1s=None,
                 #refd2s=None,
                 rho=self.rho)
-        relaxrod.InitTF()
+        relaxrod.InitTF(self)
         relaxrod.init_xs = self.xs
         relaxrod.init_op = tf.assign(relaxrod.xs, relaxrod.init_xs)
         relaxrod.loss = relaxrod.GetEConstaintTF()
@@ -465,7 +480,7 @@ class ElasticRodS:
     '''
     Functions with 'TF' suffix assume ElasticRod object members are tensors.
     '''
-    def InitTF(rod):
+    def InitTF(rod, other):
         '''
         Calculate Intermediate Tensors (e.g. Curvatures) from Input Placeholders
         This is mandantory for Energy Terms
@@ -475,7 +490,7 @@ class ElasticRodS:
         rod.fullrestvl = TFGetVoronoiEdgeLength(rod.restl)
         rod.innerrestvl = _trimslices(rod.fullrestvl, _lastdim(rod.fullrestvl), [1, 1])
         rod.ks = TFGetCurvature(rod.evec, rod.restl)
-        return rod
+        return rod.clone_args_from(other)
 
     def GetEConstaintTF(rod):
         diff = TFGetLengthConstaintFunction(rod)
@@ -505,6 +520,13 @@ class ElasticRodS:
         deltatheta = difftheta - rod.mbars
         # print('deltatheta {}'.format(deltatheta))
         return tf.reduce_sum(tf.multiply(deltatheta*deltatheta, 1.0/rod.innerrestvl))
+
+    def GetEGravityTF(rod):
+        z_begin = list([0] * len(rod.xs.get_shape()))
+        z_begin[-1] = 2
+        z_size = list([-1] * len(rod.xs.get_shape()))
+        Zs = tf.slice(rod.xs, z_begin, z_size) - rod.floor_z
+        return 0.5 * rod.g * tf.reduce_sum(tf.multiply(Zs, Zs) * rod.fullrestvl)
 
     def TFKineticI(rodnow, rodnext, h):
         rodnow.xdots = 1/h * (rodnext.xs - rodnow.xs)
@@ -543,7 +565,7 @@ class ElasticRodS:
         # return True
 
 def TFInitRod(rod):
-    return rod.InitTF()
+    return rod.InitTF(None)
 
 def TFGetEConstaint(rod):
     return rod.GetEConstaintTF()

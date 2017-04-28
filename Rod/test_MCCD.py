@@ -24,12 +24,8 @@ def run_with_bc(n, h, rho, icond, path):
 
     # TODO: Calulate SelS in ElasticRodS directly.
     ''' This check collision b/w Rod 0 Seg 0 and Rod 1 Seg 0 '''
-    sela_data = np.array([
-        [0, 0]
-        ])
-    selb_data = np.array([
-        [1, 0]
-        ])
+    sela_data = np.array([[0, i] for i in range(n)])
+    selb_data = np.array([[1, i] for i in range(n)])
 
     # pfe = TFGetEConstaint(irod)
     saver = helper.RodSaver(path)
@@ -62,6 +58,47 @@ def run_with_bc(n, h, rho, icond, path):
     saver.close()
 
 def run_test0():
+    '''
+    Test 0: 90-degree Crossing, homogeneous mass
+    '''
+    n = 1
+    h = 1.0/1024.0
+    rho = 1.0
+
+    roda_xs = np.array([
+        [-1,0,0],
+        [0,0,0],
+        ])
+    rodb_xs = np.array([
+        [-0.5,0.5,-0.5],
+        [-0.5,0.5,0.5],
+        ])
+    rods_xs = np.array([roda_xs, rodb_xs])
+    roda_thetas = np.zeros(shape=[n], dtype=np.float32)
+    rodb_thetas = np.zeros(shape=[n], dtype=np.float32)
+    rods_thetas = np.array([roda_thetas, rodb_thetas])
+    roda_xdots = np.array([
+        [0,5,0],
+        [0,5,0],
+        ])
+    rodb_xdots = np.array([
+        [0,0,0],
+        [0,0,0],
+        ])
+    rods_xdots = np.array([roda_xdots, rodb_xdots])
+    initd1 = np.array([
+        [0,1,0],
+        [1,0,0],
+    ])
+    icond = helper.create_BCRodS(xs=rods_xs,
+            xdots=rods_xdots,
+            thetas=rods_thetas,
+            omegas=rods_thetas,
+            initd1=initd1
+            )
+    run_with_bc(n, h, rho, icond, '/tmp/tfccd0')
+
+def run_test1():
     '''
     Test 0: 90-degree Crossing
     '''
@@ -100,9 +137,9 @@ def run_test0():
             omegas=rods_thetas,
             initd1=initd1
             )
-    run_with_bc(n, h, rho, icond, '/tmp/tfccd0')
+    run_with_bc(n, h, rho, icond, '/tmp/tfccd1')
 
-def run_test1():
+def run_test2():
     '''
     Test 1: 45-degree Crossing
     '''
@@ -141,11 +178,12 @@ def run_test1():
             omegas=rods_thetas,
             initd1=initd1
             )
-    run_with_bc(n, h, rho, icond, '/tmp/tfccd1')
+    run_with_bc(n, h, rho, icond, '/tmp/tfccd2')
 
 def run():
     run_test0()
     run_test1()
+    run_test2()
 
 if __name__ == '__main__':
     run()

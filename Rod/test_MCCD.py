@@ -17,13 +17,15 @@ def run_with_bc(n, h, rho, icond, path):
     '''
     tf.reset_default_graph()
     irod = helper.create_TFRodS(2, n)
+    irod.alpha = 0.01
+    irod.beta = 0.01
 
     orod = irod.CalcNextRod(h)
     rrod = orod.CalcPenaltyRelaxationTF(h)
     rrod = rrod.CreateCCDNode(irod, h)
 
     # TODO: Calulate SelS in ElasticRodS directly.
-    ''' This check collision b/w Rod 0 Seg 0 and Rod 1 Seg 0 '''
+    ''' This check collision b/w Rod 0 Seg # and Rod 1 Seg # '''
     sela_data = np.array([[0, i] for i in range(n)])
     selb_data = np.array([[1, i] for i in range(n)])
 
@@ -141,7 +143,7 @@ def run_test1():
 
 def run_test2():
     '''
-    Test 1: 45-degree Crossing
+    Test 2: 45-degree Crossing
     '''
     n = 1
     h = 1.0/1024.0
@@ -180,10 +182,60 @@ def run_test2():
             )
     run_with_bc(n, h, rho, icond, '/tmp/tfccd2')
 
+def run_test3():
+    '''
+    Test 3: Multiple segments
+    '''
+    n = 3
+    h = 1.0/1024.0
+    rho = 1.0
+
+    roda_xs = np.array([
+        [-2,0,0],
+        [-1,0,0],
+        [0,0,0],
+        [1,0,0],
+        ])
+    rodb_xs = np.array([
+        [-2, 1,-1],
+        [-1, 1, 1],
+        [ 0, 1,-1],
+        [ 1, 1, 1],
+        ])
+    rods_xs = np.array([roda_xs, rodb_xs])
+    roda_thetas = np.zeros(shape=[n], dtype=np.float32)
+    rodb_thetas = np.zeros(shape=[n], dtype=np.float32)
+    rods_thetas = np.array([roda_thetas, rodb_thetas])
+    roda_xdots = np.array([
+        [0,5,0],
+        [0,5,0],
+        [0,5,0],
+        [0,5,0],
+        ])
+    rodb_xdots = np.array([
+        [0,0,0],
+        [0,0,0],
+        [0,0,0],
+        [0,0,0],
+        ])
+    rods_xdots = np.array([roda_xdots, rodb_xdots])
+    initd1 = np.array([
+        [0,1,0],
+        [1,0,0],
+    ])
+    icond = helper.create_BCRodS(xs=rods_xs,
+            xdots=rods_xdots,
+            thetas=rods_thetas,
+            omegas=rods_thetas,
+            initd1=initd1
+            )
+    run_with_bc(n, h, rho, icond, '/tmp/tfccd3')
+
 def run():
     run_test0()
     run_test1()
     run_test2()
+    run_test3()
 
 if __name__ == '__main__':
     run()

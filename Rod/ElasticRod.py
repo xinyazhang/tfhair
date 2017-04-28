@@ -234,14 +234,15 @@ def ConvexityFilter(SelS_in, convexity):
 def TFRodCollisionImpulse(h, crod, nrod, srod, ASelS_in, BSelS_in, convexity = None):
     gcxs_k = None
     if convexity is None:
-        convexity, gcxs_k_1, gcxs_k, gnxs_k_1, gnxs_k = TFRodCCDExtended(crod, nrod, srod, ASelS_in, BSelS_in)
+        convexity, _, _, _, _ = TFRodCCDExtended(crod, nrod, srod, ASelS_in, BSelS_in)
     ASelS = ConvexityFilter(ASelS_in, convexity)
     BSelS = ConvexityFilter(BSelS_in, convexity)
-    if gcxs_k is None:
-        ''' Gathered Current Xs '''
-        gcxs_k_1, gcxs_k = TFRodXSel(crod, ASelS)
-        ''' Gathered Next Xs '''
-        gnxs_k_1, gnxs_k = TFRodXSel(nrod, ASelS)
+
+    ''' Gathered Current Xs '''
+    gcxs_k_1, gcxs_k = TFRodXSel(crod, ASelS)
+    ''' Gathered Next Xs '''
+    gnxs_k_1, gnxs_k = TFRodXSel(nrod, ASelS)
+
     gqdots = ((gnxs_k_1 - gcxs_k_1) + (gnxs_k - gcxs_k)) / (2 * h)
     # return tf.shape(gnxs_k_1)
     # return tf.shape(gqdots)

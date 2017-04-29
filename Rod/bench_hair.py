@@ -21,20 +21,23 @@ def run_with_bc(n_rods, n_segs, h, rho, icond, anchors, path):
     icond.anchors = anchors[0]
     tf.reset_default_graph()
     irod = helper.create_TFRodS(n_rods, n_segs)
+    irod.clone_args_from(icond)
+    if icond.anchors is not None:
+        irod.anchors = tf.placeholder(tf.float32, shape=icond.anchors.shape)
 
     orod = irod.CalcNextRod(h)
     rrod = orod.CalcPenaltyRelaxationTF(h)
 
     saver = helper.RodSaver(path)
     with tf.Session() as sess:
-        run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
+        run_options = tf.RunOptions(trace_level=tf.RunOptions.NO_TRACE)
         run_metadata = tf.RunMetadata()
         sess.run(tf.global_variables_initializer())
         nframe = len(anchors)
         # nframe = 10
         with progressbar.ProgressBar(max_value=nframe) as progress:
-            for frame in range(nframe):
-                icond.anchors = anchors[frame]  # anchors update
+            for frame in range(1,nframe):
+                icond.anchors = anchors[frame-1]  # anchors update
 
                 #inputdict = {irod.xs:xs, irod.restl:rl, irod.thetas:thetas, irod.xdots:xdots, irod:omegas:omegas}
                 inputdict = helper.create_dict([irod], [icond])
@@ -54,6 +57,8 @@ def run_with_bc(n_rods, n_segs, h, rho, icond, anchors, path):
                 # print("refd1s {}".format(icond.refd1s))
                 # print("refd2s {}".format(icond.refd2s))
                 progress.update(frame+1)
+                # print icond.xs[:,0,:]
+                # print icond.anchors
         tl = timeline.Timeline(run_metadata.step_stats)
         ctf = tl.generate_chrome_trace_format()
         with open('/tmp/bench_hair.json', 'w') as f:
@@ -77,6 +82,9 @@ def run_hair_test(matfile):
             omegas=omegas,
             initd1=initd1
     )
+    icond.alpha = 0.001
+    icond.beta = 0.001
+    icond.g = 9.8
 
     n_rods, n_segs = thetas.shape
     h = 1.0/1024.0

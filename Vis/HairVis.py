@@ -45,7 +45,7 @@ def LoadFrameCallback(scn):
     path = scene.cache_path
     frame = scn.frame_current
 
-    filepath = os.path.join(path, "%d.mat" % frame)
+    filepath = os.path.join(path, "%d.mat" % (frame-1))
     if os.path.exists(filepath):
         scene.Load(frame, filepath)
 
@@ -56,6 +56,8 @@ def Setup(options, args):
         scene.Dump(options.dump)
     else:
         scene.SetCachePath(args[0])
+        if len(args) > 1:
+            scene.SetMetadata(args[1])
         bpy.app.handlers.frame_change_pre.append(LoadFrameCallback)
 
         path = scene.cache_path

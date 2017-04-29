@@ -129,9 +129,15 @@ class HairScene(Scene):
         self.cache_path = None
         self.loaded_frames = set()
         self.last_loaded = None
+        self.anchors = None
 
     def SetCachePath(self, path):
         self.cache_path = path
+
+    def SetMetadata(self, metadata):
+        mdict = dict()
+        scipy.io.loadmat(metadata, mdict)
+        self.anchors = mdict["anchor"]
 
     def IsFrameLoaded(self, frame):
         return frame in self.loaded_frames
@@ -162,9 +168,6 @@ class HairScene(Scene):
         for i, h in enumerate(hairs):
             for j, hv in enumerate(h.hair_keys):
                 hv.co = world2local * mathutils.Vector(xs[0,i,j,:])
-                # hv.co = mathutils.Vector(xs[0,i,j,:])
-                if i == 0:
-                    print("hair[0] seg %d:" % j, hv.co)
 
     def Dump(self, filename):
         obj = bpy.context.object
@@ -196,14 +199,14 @@ class HairScene(Scene):
             initds[i,:] = np.array(d3)
 
         # assign anchor points
-        anchors = [ np.zeros(shape=(n_rods, 3), dtype=np.float32) ] * self.scene.frame_end
+        anchors = np.zeros(shape=(self.scene.frame_end, n_rods, 3), dtype=np.float32)
         for frame, anchor in enumerate(anchors):
             print("Generate frame %d" % frame)
             bpy.context.scene.frame_set(frame)
+            # print(obj.matrix_world)
             for i, h in enumerate(hairs):
                 anchor[i,:] = np.array(obj.matrix_world * h.hair_keys[0].co)
-            # print(obj.matrix_world)
-            # print(anchor[0,:])
+                # print(mathutils.Vector(anchors[frame,i,:]))
         print("Done")
 
         filename = os.path.abspath(filename)

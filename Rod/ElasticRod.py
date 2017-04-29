@@ -480,6 +480,7 @@ class ElasticRodS:
                     break
             else:
                 break
+        # print "loss:", E
         vl = sess.run(self.GetVariableList(), feed_dict=inputdict, options=options, run_metadata=run_metadata)
         icond.UpdateVariable(vl)
         return icond

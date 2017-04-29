@@ -211,7 +211,7 @@ def TFRodCCDExtended(crod, nrod, srod, ASelS, BSelS):
     # return tf.shape(gcxs_k)
     ''' Gathered Next Xs '''
     gnxs_k_1, gnxs_k = TFRodXSel(nrod, ASelS)
-    npoles, spoles = TFRodXSel(srod, BSelS) # FIXME: use srod based reference system 
+    npoles, spoles = TFRodXSel(srod, BSelS) # FIXME: use srod based reference system
     verts = [
             [npoles, gcxs_k_1, gcxs_k, gnxs_k, gnxs_k_1, spoles],
             [npoles, gcxs_k, gnxs_k, gnxs_k_1, gcxs_k_1, spoles],
@@ -388,8 +388,8 @@ class ElasticRodS:
         if (not self.refd1s is None) and (not self.refd2s is None):
             TFPropogateRefDs(self, pseudonrod)
         E = self.alpha * pseudonrod.GetEBendTF() \
-                + self.beta * pseudonrod.GetETwistTF() \
-                + pseudonrod.GetEGravityTF() \
+                + self.beta * pseudonrod.GetETwistTF() #\               # FIXME: This would fail for multiple rod case
+                # + pseudonrod.GetEGravityTF() \
                 # + _stiff * pseudonrod.GetEConstaintTF()
         # print('E: {}'.format(E))
         # print('pseudonrod.xs: {}'.format(pseudonrod.xs))

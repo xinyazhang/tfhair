@@ -14,10 +14,11 @@ from math import pi
 import progressbar
 from tensorflow.python.client import timeline
 
-def run_with_bc(n_rods, n_segs, h, rho, icond, path):
+def run_with_bc(n_rods, n_segs, h, rho, icond, anchors, path):
     '''
     Run the simulation with given boundary conditions (icond)
     '''
+    icond.anchors = anchors[0]
     tf.reset_default_graph()
     irod = helper.create_TFRodS(n_rods, n_segs)
 
@@ -29,10 +30,12 @@ def run_with_bc(n_rods, n_segs, h, rho, icond, path):
         run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
         run_metadata = tf.RunMetadata()
         sess.run(tf.global_variables_initializer())
-        nframe = 720
+        nframe = len(anchors)
         # nframe = 10
         with progressbar.ProgressBar(max_value=nframe) as progress:
             for frame in range(nframe):
+                icond.anchors = anchors[frame]  # anchors update
+
                 #inputdict = {irod.xs:xs, irod.restl:rl, irod.thetas:thetas, irod.xdots:xdots, irod:omegas:omegas}
                 inputdict = helper.create_dict([irod], [icond])
                 # print(inputdict)
@@ -67,6 +70,7 @@ def run_hair_test(matfile):
     thetas = mdict["theta"]
     omegas = mdict["omega"]
     initd1 = mdict["initd"]
+    anchors = mdict["anchor"]       # anchors records the anchor points of each frame
     icond = helper.create_BCRodS(xs=xs,
             xdots=xdots,
             thetas=thetas,
@@ -78,7 +82,7 @@ def run_hair_test(matfile):
     h = 1.0/1024.0
     rho = 1.0
 
-    run_with_bc(n_rods, n_segs, h, rho, icond, '/tmp/tfhair')
+    run_with_bc(n_rods, n_segs, h, rho, icond, anchors, '/tmp/tfhair')
 
 if __name__ == "__main__":
     run_hair_test(sys.argv[1])

@@ -158,34 +158,53 @@ class HairScene(Scene):
         n_rods = len(hairs)
         n_segs = len(hairs[0].hair_keys) - 1
 
+        world2local = obj.matrix_world.inverted()
         for i, h in enumerate(hairs):
             for j, hv in enumerate(h.hair_keys):
-                hv.co = mathutils.Vector(xs[0,i,j,:])
-                # hv.co = hv.co + mathutils.Vector([0,0,j])
+                hv.co = world2local * mathutils.Vector(xs[0,i,j,:])
+                # hv.co = mathutils.Vector(xs[0,i,j,:])
+                if i == 0:
+                    print("hair[0] seg %d:" % j, hv.co)
 
     def Dump(self, filename):
         obj = bpy.context.object
         hairs = obj.particle_systems[0].particles
         n_rods = len(hairs)
         n_segs = len(hairs[0].hair_keys) - 1
+
         # create numpy tensors
         cpos = np.zeros(shape=(n_rods, n_segs+1, 3), dtype=np.float32)
         cvel = np.zeros(shape=(n_rods, n_segs+1, 3), dtype=np.float32)
         theta = np.zeros(shape=(n_rods, n_segs), dtype=np.float32)
         omega = np.zeros(shape=(n_rods, n_segs), dtype=np.float32)
         initds = np.zeros(shape=(n_rods, 3), dtype=np.float32)
+
+        def wc(vertex):
+            return obj.matrix_world * vertex
+
         # assign cpos and theta (theta not available here)
         for i, h in enumerate(hairs):
             # assign cpos
             for j, hv in enumerate(h.hair_keys):
-                cpos[i,j,:] = np.array(hv.co)
+                cpos[i,j,:] = np.array(wc(hv.co))
             # compute initd1
-            d1 = (hairs[i].hair_keys[1].co - hairs[i].hair_keys[0].co).normalized()
+            d1 = (wc(hairs[i].hair_keys[1].co) - wc(hairs[i].hair_keys[0].co)).normalized()
             d2 = mathutils.Vector([1, 0, 0])
             if d1.cross(d2).length == 0:
                 d2 = mathutils.Vector([0, 1, 0])
             d3 = d1.cross(d2).normalized()
             initds[i,:] = np.array(d3)
+
+        # assign anchor points
+        anchors = [ np.zeros(shape=(n_rods, 3), dtype=np.float32) ] * self.scene.frame_end
+        for frame, anchor in enumerate(anchors):
+            print("Generate frame %d" % frame)
+            bpy.context.scene.frame_set(frame)
+            for i, h in enumerate(hairs):
+                anchor[i,:] = np.array(obj.matrix_world * h.hair_keys[0].co)
+            # print(obj.matrix_world)
+            # print(anchor[0,:])
+        print("Done")
 
         filename = os.path.abspath(filename)
         mdict = {
@@ -193,6 +212,7 @@ class HairScene(Scene):
             "cvel"   : cvel,
             "theta"  : theta,
             "omega"  : omega,
-            "initd"  : initds
+            "initd"  : initds,
+            "anchor" : anchors
         }
         scipy.io.savemat(filename, mdict, appendmat=True)

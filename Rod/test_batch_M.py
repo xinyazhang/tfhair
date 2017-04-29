@@ -17,6 +17,7 @@ def run_with_bc(n_rods, n_segs, h, rho, icond, path):
     '''
     tf.reset_default_graph()
     irod = helper.create_TFRodS(n_rods, n_segs)
+    irod.clone_args_from(icond)
 
     orod = irod.CalcNextRod(h)
     rrod = orod.CalcPenaltyRelaxationTF(h)
@@ -239,6 +240,39 @@ def run_test5():
             initd1=initd1
     )
     run_with_bc(n_rods, n_segs, h, rho, icond, '/tmp/tftest5b')
+
+def run_test6():
+    '''
+    Test 6: bending force with gravity
+    '''
+    n_rods = 2
+    n_segs = 3
+    h = 1.0/1024.0
+    rho = 1.0
+
+    xs = np.array([
+        [ [-1,0,0], [0,0,0], [0,-1,0], [-1,-1,0] ],
+        [ [-1,0,1], [0,0,1], [0,-1,1], [-1,-1,1] ],
+    ])
+    xdots = np.array([
+        [ [0,0,0], [0,0,0], [0,0,0], [0,0,0] ],
+        [ [0,0,0], [0,0,0], [0,0,0], [0,0,0] ],
+    ])
+    initd1 = np.array([
+        [0,1,0],
+        [0,1,0],
+    ])
+    thetas = np.zeros(shape=[n_rods, n_segs], dtype=np.float32)
+    omegas = np.zeros(shape=[n_rods, n_segs], dtype=np.float32)
+    icond = helper.create_BCRodS(xs=xs,
+        xdots=xdots,
+        thetas=thetas,
+        omegas=omegas,
+        initd1=initd1
+    )
+    icond.g = 9.8
+    icond.floor_z = -5.0
+    run_with_bc(n_rods, n_segs, h, rho, icond, '/tmp/tftest6b')
 
 def run():
     # run_test0()

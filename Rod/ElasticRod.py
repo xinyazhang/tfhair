@@ -388,8 +388,8 @@ class ElasticRodS:
         if (not self.refd1s is None) and (not self.refd2s is None):
             TFPropogateRefDs(self, pseudonrod)
         E = self.alpha * pseudonrod.GetEBendTF() \
-                + self.beta * pseudonrod.GetETwistTF() #\               # FIXME: This would fail for multiple rod case
-                # + pseudonrod.GetEGravityTF() \
+                + self.beta * pseudonrod.GetETwistTF() \
+                + pseudonrod.GetEGravityTF() \
                 # + _stiff * pseudonrod.GetEConstaintTF()
         # print('E: {}'.format(E))
         # print('pseudonrod.xs: {}'.format(pseudonrod.xs))
@@ -546,7 +546,7 @@ class ElasticRodS:
         z_begin[-1] = 2
         z_size = list([-1] * len(rod.xs.get_shape()))
         Zs = tf.slice(rod.xs, z_begin, z_size) - rod.floor_z
-        return 0.5 * rod.g * tf.reduce_sum(tf.multiply(Zs, Zs) * rod.fullrestvl)
+        return 0.5 * rod.g * tf.reduce_sum(tf.multiply(Zs, Zs) * _paddim(rod.fullrestvl))
 
     def TFKineticI(rodnow, rodnext, h):
         rodnow.xdots = 1/h * (rodnext.xs - rodnow.xs)

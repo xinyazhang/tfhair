@@ -18,8 +18,11 @@ _epsilon = 1e-8
 _default_rho = 0.1
 _stiff = 1e7
 
+def _ndim(tensor):
+    return len(tensor.get_shape())
+
 def _lastdim(tensor):
-    return len(tensor.get_shape()) - 1
+    return _ndim(tensor) - 1
 
 def _dot(tensor1, tensor2, dim=None):
     if dim == None:
@@ -95,7 +98,7 @@ def TFGetCurvature(ev, enorms):
     # print(denominator.get_shape())
     return 2 * tf.multiply(tf.cross(e_i_1, e_i), 1.0/(denominator))
 
-def TFGetLengthConstaintFunction(rod):
+def TFGetLengthConstraintFunction(rod):
     sqlen = _dot(rod.evec, rod.evec)
     sqrest = rod.restl * rod.restl;
     return sqlen - sqrest
@@ -321,10 +324,14 @@ class ElasticRodS:
         self.beta = other.beta
         self.g = other.g
         self.floor_z = other.floor_z
+        self.anchors = other.anchors
+        self.anchor_masks = other.anchor_masks
         return self
 
     c = None # Translation
     q = None # Rotation quaternion
+    anchors = None # 2D tensor: N Rod x 3
+    anchor_masks = None # 2D tensor: N Rod x 1
 
     '''
     Convention of additional tensors
@@ -426,7 +433,7 @@ class ElasticRodS:
         relaxrod.InitTF(self)
         relaxrod.init_xs = self.xs
         relaxrod.init_op = tf.assign(relaxrod.xs, relaxrod.init_xs)
-        relaxrod.loss = relaxrod.GetEConstaintTF()
+        relaxrod.loss = relaxrod.GetEConstraintTF()
         relaxrod.trainer = tf.train.AdamOptimizer(learning_rate)
         relaxrod.grads = relaxrod.trainer.compute_gradients(relaxrod.loss)
         # print('relaxrod.grads {}'.format(relaxrod.grads))
@@ -492,9 +499,22 @@ class ElasticRodS:
         rod.ks = TFGetCurvature(rod.evec, rod.restl)
         return rod.clone_args_from(other)
 
-    def GetEConstaintTF(rod):
-        diff = TFGetLengthConstaintFunction(rod)
-        return tf.reduce_sum(_dot(diff, diff))
+    def GetEConstraintTF(rod):
+        diff = TFGetLengthConstraintFunction(rod)
+        total = tf.reduce_sum(_dot(diff, diff))
+        if rod.anchors is not None:
+            '''
+            Pick up (:,0,:) or (0,:) from rod.xs
+            as 2D or 1D tensor
+            '''
+            ndim = _ndim(rod.xs)
+            start = list([0] * ndim)
+            size = list([-1] * ndim)
+            size[-2] = 1
+            firstX = tf.unstack(tf.slice(rod.xs, start, size), axis=ndim - 2)[0]
+            diff = firstX - rod.anchors
+            total += tf.reduce_sum(_dot(diff, diff))
+        return total
 
     def GetEBendTF(rod):
         sqnorm = _dot(rod.ks, rod.ks)
@@ -567,8 +587,8 @@ class ElasticRodS:
 def TFInitRod(rod):
     return rod.InitTF(None)
 
-def TFGetEConstaint(rod):
-    return rod.GetEConstaintTF()
+def TFGetEConstraint(rod):
+    return rod.GetEConstraintTF()
 
 def TFGetEBend(rod):
     return rod.GetEBendTF()

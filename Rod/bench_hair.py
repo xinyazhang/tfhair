@@ -24,7 +24,6 @@ def run_with_bc(n_rods, n_segs, h, rho, icond, path):
     orod = irod.CalcNextRod(h)
     rrod = orod.CalcPenaltyRelaxationTF(h)
 
-    pfe = TFGetEConstaint(irod)
     saver = helper.RodSaver(path)
     with tf.Session() as sess:
         run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)

@@ -136,6 +136,8 @@ def create_dict(irods, drods):
             tups.append((irod.refd1s, drod.refd1s))
         if not irod.refd2s is None:
             tups.append((irod.refd2s, drod.refd2s))
+        if irod.anchors is not None:
+            tups.append((irod.anchors, drod.anchors))
 
     return dict(tups)
 

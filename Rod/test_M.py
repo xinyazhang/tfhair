@@ -11,13 +11,15 @@ import math
 from math import pi
 import progressbar
 
-def run_with_bc(n, h, rho, icond, path):
+def run_with_bc(n, h, rho, icond, path, icond_updater=None):
     '''
     Run the simulation with given boundary conditions (icond)
     '''
     tf.reset_default_graph()
     irod = helper.create_TFRod(n)
     irod.clone_args_from(icond)
+    if icond.anchors is not None:
+        irod.anchors = tf.placeholder(tf.float32, shape=icond.anchors.shape)
 
     orod = irod.CalcNextRod(h)
     rrod = orod.CalcPenaltyRelaxationTF(h)
@@ -30,6 +32,8 @@ def run_with_bc(n, h, rho, icond, path):
         # nframe = 10
         with progressbar.ProgressBar(max_value=nframe) as progress:
             for frame in range(nframe):
+                if icond_updater is not None:
+                    icond_updater(h, icond)
                 #inputdict = {irod.xs:xs, irod.restl:rl, irod.thetas:thetas, irod.xdots:xdots, irod:omegas:omegas}
                 inputdict = helper.create_dict([irod], [icond])
                 # print(inputdict)
@@ -263,6 +267,34 @@ def run_test6():
     icond.floor_z = -5.0
     run_with_bc(n, h, rho, icond, '/tmp/tftest6')
 
+def SinAnchor(h, icond):
+    icond.anchors = np.array([0.0, math.sin(icond.t), 0.0])
+    icond.t += h * 32
+
+def run_test7():
+    '''
+    Test 7: anchors
+    '''
+    n = 32
+    h = 1.0/1024.0
+    rho = 1.0
+
+    xs = np.array([[float(i)/(n / 4.0), 0.0, 0.0] for i in range(n+1)])
+    xdots = np.zeros(shape=[n+1,3], dtype=np.float32)
+    thetas = np.zeros(shape=[n], dtype=np.float32)
+    omegas = np.zeros(shape=[n], dtype=np.float32)
+    icond = helper.create_BCRod(xs=xs,
+            xdots=xdots,
+            thetas=thetas,
+            omegas=omegas,
+            initd1=np.array([0,1,0])
+            )
+    icond.anchors = np.array([0,0,0])
+    icond.t = 0.0
+    icond.alpha = 0.01
+    icond.beta = 0.01
+    run_with_bc(n, h, rho, icond, '/tmp/tftest7', icond_updater=SinAnchor)
+
 def run():
     run_test0()
     run_test1()
@@ -270,6 +302,8 @@ def run():
     run_test3()
     run_test4()
     run_test5()
+    run_test6()
+    run_test7()
 
 if __name__ == '__main__':
-    run_test6()
+    run()

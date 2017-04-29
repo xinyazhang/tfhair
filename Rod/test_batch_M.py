@@ -21,7 +21,6 @@ def run_with_bc(n_rods, n_segs, h, rho, icond, path):
     orod = irod.CalcNextRod(h)
     rrod = orod.CalcPenaltyRelaxationTF(h)
 
-    pfe = TFGetEConstaint(irod)
     saver = helper.RodSaver(path)
     with tf.Session() as sess:
         sess.run(tf.global_variables_initializer())
@@ -39,7 +38,6 @@ def run_with_bc(n_rods, n_segs, h, rho, icond, path):
                     [icond.refd2s])
                 xs, xdots, thetas, omegas = sess.run([orod.xs, orod.xdots,
                    orod.thetas, orod.omegas], feed_dict=inputdict)
-                # print(pfe.eval(feed_dict=inputdict))
                 # print(orod.XForce.eval(feed_dict=inputdict))
                 # print("xdots {}".format(xdots))
                 # print("thetas {}".format(icond.thetas))

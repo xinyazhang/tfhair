@@ -24,10 +24,10 @@ def _ndim(tensor):
 def _lastdim(tensor):
     return _ndim(tensor) - 1
 
-def _dot(tensor1, tensor2, dim=None):
+def _dot(tensor1, tensor2, dim=None, keep_dims=False):
     if dim == None:
         dim = _lastdim(tensor1)
-    return tf.reduce_sum(tf.multiply(tensor1, tensor2), dim, keep_dims=False)
+    return tf.reduce_sum(tf.multiply(tensor1, tensor2), dim, keep_dims=keep_dims)
 
 def _trimslices(tensor, dim = None, margins = [1, 1]):
     if dim == None:
@@ -56,6 +56,17 @@ def _normalize(evec):
 def _paddim(tensor):
     return tf.stack([tensor], axis=_lastdim(tensor)+1)
     #return tf.expand_dims(tensor, -1)
+
+def _pick_segment_from_rods(tensor, segid):
+    ndim = _ndim(tensor)
+    assert ndim == 3
+    start = list([0] * ndim)
+    start[1] = segid
+    size = list([-1] * ndim)
+    size[1] = 1
+    rodsseg = tf.slice(tensor, start, size)
+    dshape = tf.shape(rodsseg)
+    return tf.reshape(rodsseg, shape=[dshape[0], dshape[2]])
 
 def TFGetEdgeVector(xs):
     x_i_1, x_i = _diffslices(xs)
@@ -287,6 +298,65 @@ def TFApplyImpulse(h, rods, ASelS, BSelS, impulse):
     Note we don't need to change xdots or others, this is an optimizaiton procedure
     '''
     # return nrods
+
+_distance_bound_ratio = 1.0
+
+def _translate_from_stacked(nrods, segidi, segidj, rodids):
+    cond = tf.less(rodids, nrods)
+    unit_col = tf.ones_like(rodids)
+    icol = unit_col * segidi
+    jcol = unit_col * segidj
+    return tf.where(cond, tf.stack([rodids, icol], axis=1), tf.stack([rodids - nrods, jcol], axis=1))
+
+def TFSegmentVsSegmentDistanceFilter(h, i, j, xs, sqnxs, thresh, to_stack):
+    nrods = tf.cast(tf.shape(xs)[0], tf.int64)
+    xsi = _pick_segment_from_rods(xs, i)
+    xsj = _pick_segment_from_rods(xs, j)
+    # print('xsi: {}'.format(xsi))
+    xst = tf.concat([xsi, xsj], axis=0)
+    crossterm = -2 * tf.matmul(xst, xst, transpose_b=True)
+    sqnxsi = _pick_segment_from_rods(sqnxs, i)
+    sqnxsj = _pick_segment_from_rods(sqnxs, j)
+    sqnxst = tf.concat([sqnxsi, sqnxsj], axis=0)
+    D = (crossterm + sqnxst) + tf.transpose(sqnxst)
+    indices = tf.where(tf.less(D, thresh * h * _distance_bound_ratio))
+    #print(indices)
+    Arods,Brods = tf.unstack(indices, 2, axis=1)
+    # print(Arods)
+    processed = tf.where(tf.less(Arods, Brods))
+    # print(processed)
+    ArodsRemain = tf.gather_nd(Arods, processed)
+    BrodsRemain = tf.gather_nd(Brods, processed)
+    ArodsRelabel = _translate_from_stacked(nrods, i, j, ArodsRemain)
+    BrodsRelabel = _translate_from_stacked(nrods, i, j, BrodsRemain)
+    #return indices, D, Arods, Brods, processed, ArodsRemain, BrodsRemain, nrods, ArodsRelabel, BrodsRelabel
+    return ArodsRelabel, BrodsRelabel
+    # return tf.concat([to_stack, indices])
+
+'''
+def TFSpecificSegmentDistanceFilter(h, idxseg, xs, sqnxs, xdots, to_stack):
+    j0 = tf.constant(0)
+    loop_cond = lambda j, _1, _2, _3, _4: tf.less_equal(idxseg)
+    loop_body = lambda j, xs, sqnxs, xdots, stack: [tf,add(j, 1), xs, sqnxs, xdots, TFSegmentVsSegmentDistanceFilter(h, idxseg, j, xs, sqnxs, xdots, to_stack)]
+    loop = tf.while_loop(loop_cond, loop_body, loop_vars=[j0, midpoints, sqmidpoints, segmaxvel, to_stack])
+    return loop[-1]
+
+def TFDistanceFilter(h, rods):
+    assert _ndim(rods.xs) == 3, "TFDistanceFilter requires ElasticRodS object with multiple rods, i.e. .xs member must be a 3D tensor"
+    nsegs = tf.shape(rods.xs)[1]
+    i0 = tf.constant(0)
+    x_i_1, x_i = _diffslices(rods.xs)
+    midpoints = (xs_i_1 + x_i) / 2.0
+    sqnmidpoints = _dot(midpoints, midpoints)
+    velns = tf.norm(rods.xdots, axis=_lastdim(rods.xdots))
+    veln_i_1, veln_i = _diffslices(velns)
+    segmaxvel = tf.maximum(veln_i_1, veln_i)
+    # TODO: stack0
+    loop_cond = lambda i, _1, _2, _3, _4: tf.less(i, nsegs)
+    loop_body = lambda i, xs, sqnxs, xdots, stack: [tf,add(i, 1), xs, sqnxs, xdots, TFSpecificSegmentDistanceFilter(h, i, xs, sqnxs, xdots, stack)]
+    loop = tf.while_loop(loop_cond, loop_body, loop_vars=[i0, midpoints, sqmidpoints, segmaxvel, stack0])
+    return loop[-1]
+'''
 
 class ElasticRodS:
 

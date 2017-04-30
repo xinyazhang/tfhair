@@ -303,12 +303,68 @@ _distance_bound_ratio = 1.0
 
 def _translate_from_stacked(nrods, segidi, segidj, rodids):
     cond = tf.less(rodids, nrods)
-    unit_col = tf.ones_like(rodids)
-    icol = unit_col * segidi
-    jcol = unit_col * segidj
+    unit_col = tf.ones_like(rodids, dtype=tf.int64)
+    # print(type(segidi))
+    # print(type(segidj))
+    icol = unit_col * tf.convert_to_tensor(segidi, dtype=tf.int64)
+    jcol = unit_col * tf.convert_to_tensor(segidj, dtype=tf.int64)
     return tf.where(cond, tf.stack([rodids, icol], axis=1), tf.stack([rodids - nrods, jcol], axis=1))
 
+# Innerloop for i == j
+def TFSegmentVsSegmentDistanceFilterNoCat(h, i, j, xs, sqnxs, thresh, to_stack):
+    nrods = tf.cast(tf.shape(xs)[0], tf.int64)
+    xst = _pick_segment_from_rods(xs, i)
+    crossterm = -2 * tf.matmul(xst, xst, transpose_b=True)
+    sqnxst = _pick_segment_from_rods(sqnxs, i)
+    D = (crossterm + sqnxst) + tf.transpose(sqnxst)
+    indices = tf.where(tf.less(D, thresh * h * _distance_bound_ratio))
+    #print(indices)
+    Arods,Brods = tf.unstack(indices, 2, axis=1)
+    # print(Arods)
+    processed = tf.where(tf.less(Arods, Brods)) # Only consider pairs (Alpha, i) (Beta, j) where Alpha < Beta
+    # print(processed)
+    ArodsRemain = tf.gather_nd(Arods, processed)
+    BrodsRemain = tf.gather_nd(Brods, processed)
+    ArodsRelabel = _translate_from_stacked(nrods, i, j, ArodsRemain)
+    BrodsRelabel = _translate_from_stacked(nrods, i, j, BrodsRemain)
+    tmp1 = tf.concat([ArodsRelabel, BrodsRelabel], axis=_lastdim(ArodsRelabel))
+    tmp2 = tf.concat([to_stack, tmp1], axis=0)
+    return tmp2
+
+# Innerloop for i != j
+# FIXME: Refactor to merge this function with NoCat version
+def TFSegmentVsSegmentDistanceFilterNoInnerCross(h, i, j, xs, sqnxs, thresh, to_stack):
+    nrods = tf.cast(tf.shape(xs)[0], tf.int64)
+    xsi = _pick_segment_from_rods(xs, i)
+    xsj = _pick_segment_from_rods(xs, j)
+    crossterm = -2 * tf.matmul(xsi, xsj, transpose_b=True)
+    sqnxsi = _pick_segment_from_rods(sqnxs, i)
+    sqnxsj = _pick_segment_from_rods(sqnxs, j)
+    D = (crossterm + sqnxsi) + tf.transpose(sqnxsj)
+    indices = tf.where(tf.less(D, thresh * h * _distance_bound_ratio))
+    #print(indices)
+    Arods,Brods = tf.unstack(indices, 2, axis=1)
+    # print(Arods)
+    processed = tf.where(tf.less(Arods, Brods)) # Only consider pairs (Alpha, i) (Beta, j) where Alpha < Beta
+    # print(processed)
+    # ArodsRemain = tf.gather_nd(Arods, processed)
+    # BrodsRemain = tf.gather_nd(Brods, processed)
+    ArodsRemain = Arods
+    BrodsRemain = Brods
+    unit_col = tf.ones_like(ArodsRemain, dtype=tf.int64)
+    icol = unit_col * tf.convert_to_tensor(i, dtype=tf.int64)
+    jcol = unit_col * tf.convert_to_tensor(j, dtype=tf.int64)
+    ArodsRelabel = tf.stack([ArodsRemain, icol], axis=1)
+    BrodsRelabel = tf.stack([BrodsRemain, jcol], axis=1)
+    tmp1 = tf.concat([ArodsRelabel, BrodsRelabel], axis=_lastdim(ArodsRelabel))
+    tmp2 = tf.concat([to_stack, tmp1], axis=0)
+    # return tmp2, D, crossterm, indices, Arods, Brods
+    return tmp2
+
+'''
 def TFSegmentVsSegmentDistanceFilter(h, i, j, xs, sqnxs, thresh, to_stack):
+    # print(type(i))
+    # print(type(j))
     nrods = tf.cast(tf.shape(xs)[0], tf.int64)
     xsi = _pick_segment_from_rods(xs, i)
     xsj = _pick_segment_from_rods(xs, j)
@@ -323,39 +379,66 @@ def TFSegmentVsSegmentDistanceFilter(h, i, j, xs, sqnxs, thresh, to_stack):
     #print(indices)
     Arods,Brods = tf.unstack(indices, 2, axis=1)
     # print(Arods)
-    processed = tf.where(tf.less(Arods, Brods))
+    processed = tf.where(tf.less_equal(Arods, Brods)) # Only consider pairs (Alpha, i) (Beta, j) where Alpha < Beta
     # print(processed)
     ArodsRemain = tf.gather_nd(Arods, processed)
     BrodsRemain = tf.gather_nd(Brods, processed)
     ArodsRelabel = _translate_from_stacked(nrods, i, j, ArodsRemain)
     BrodsRelabel = _translate_from_stacked(nrods, i, j, BrodsRemain)
-    #return indices, D, Arods, Brods, processed, ArodsRemain, BrodsRemain, nrods, ArodsRelabel, BrodsRelabel
-    return ArodsRelabel, BrodsRelabel
+    if to_stack is None:
+        # return ArodsRelabel, BrodsRelabel
+        return indices, D, Arods, Brods, processed, ArodsRemain, BrodsRemain, nrods, ArodsRelabel, BrodsRelabel
+        # return tf.concat([ArodsRelabel, BrodsRelabel], axis=_lastdim(ArodsRelabel))
+    else:
+        # print(ArodsRelabel)
+        # print(BrodsRelabel)
+        tmp1 = tf.concat([ArodsRelabel, BrodsRelabel], axis=_lastdim(ArodsRelabel))
+        # print(tmp1)
+        tmp2 = tf.concat([to_stack, tmp1], axis=0)
+        #tmp2 = tf.concat([to_stack, tmp1], axis=0)
+        # print(tmp2)
+        return tmp2
     # return tf.concat([to_stack, indices])
+'''
+
+# Middle loop
+def TFSpecificSegmentDistanceFilter(h, maxsegidx, midpoints, sqmidpoints, segmaxvel, to_stack):
+    # print(type(idxseg))
+    j0 = tf.constant(0, dtype=tf.int64)
+    loop_cond = lambda j, _1, _2, _3, _4: tf.less(j, maxsegidx)
+    loop_body = lambda j, xs, sqnxs, xdots, to_stack: \
+        [tf.add(j, 1), xs, sqnxs, xdots, \
+         TFSegmentVsSegmentDistanceFilterNoInnerCross(h, j, maxsegidx, xs, sqnxs, xdots, to_stack)]
+    ivalues = [j0, midpoints, sqmidpoints, segmaxvel, to_stack]
+    shape_inv = list(map(lambda x:x.get_shape(), ivalues))
+    shape_inv[-1] = tf.TensorShape([None,4])
+    loop = tf.while_loop(loop_cond, loop_body, loop_vars=ivalues, shape_invariants=shape_inv)
+    # print(loop)
+    return TFSegmentVsSegmentDistanceFilterNoCat(h, maxsegidx, maxsegidx, midpoints, sqmidpoints, segmaxvel, loop[-1])
+
+# Outer loop
+def TFDistanceFilter(h, midpoints, thresholds):
+    sqnmidpoints = _dot(midpoints, midpoints, keep_dims=True)
+    nsegs = tf.cast(tf.shape(midpoints)[1], dtype=tf.int64)
+    # TODO: stack0
+    i0 = tf.constant(0, dtype=tf.int64)
+    stack0 = -1 * tf.ones(shape=[1,4], dtype=tf.int64)
+    loop_cond = lambda i, _1, _2, _3, _4: tf.less(i, nsegs)
+    loop_body = lambda i, xs, sqnxs, xdots, stack: [tf.add(i, 1), xs, sqnxs, xdots, TFSpecificSegmentDistanceFilter(h, i, xs, sqnxs, xdots, stack)]
+    ivalues = [i0, midpoints, sqnmidpoints, thresholds, stack0]
+    shape_inv = list(map(lambda x:x.get_shape(), ivalues))
+    shape_inv[-1] = tf.TensorShape([None,4])
+    loop = tf.while_loop(loop_cond, loop_body, loop_vars=ivalues, shape_invariants=shape_inv)
+    return tf.slice(loop[-1], [1, 0], [-1, -1])
 
 '''
-def TFSpecificSegmentDistanceFilter(h, idxseg, xs, sqnxs, xdots, to_stack):
-    j0 = tf.constant(0)
-    loop_cond = lambda j, _1, _2, _3, _4: tf.less_equal(idxseg)
-    loop_body = lambda j, xs, sqnxs, xdots, stack: [tf,add(j, 1), xs, sqnxs, xdots, TFSegmentVsSegmentDistanceFilter(h, idxseg, j, xs, sqnxs, xdots, to_stack)]
-    loop = tf.while_loop(loop_cond, loop_body, loop_vars=[j0, midpoints, sqmidpoints, segmaxvel, to_stack])
-    return loop[-1]
-
-def TFDistanceFilter(h, rods):
     assert _ndim(rods.xs) == 3, "TFDistanceFilter requires ElasticRodS object with multiple rods, i.e. .xs member must be a 3D tensor"
     nsegs = tf.shape(rods.xs)[1]
-    i0 = tf.constant(0)
     x_i_1, x_i = _diffslices(rods.xs)
     midpoints = (xs_i_1 + x_i) / 2.0
-    sqnmidpoints = _dot(midpoints, midpoints)
     velns = tf.norm(rods.xdots, axis=_lastdim(rods.xdots))
     veln_i_1, veln_i = _diffslices(velns)
     segmaxvel = tf.maximum(veln_i_1, veln_i)
-    # TODO: stack0
-    loop_cond = lambda i, _1, _2, _3, _4: tf.less(i, nsegs)
-    loop_body = lambda i, xs, sqnxs, xdots, stack: [tf,add(i, 1), xs, sqnxs, xdots, TFSpecificSegmentDistanceFilter(h, i, xs, sqnxs, xdots, stack)]
-    loop = tf.while_loop(loop_cond, loop_body, loop_vars=[i0, midpoints, sqmidpoints, segmaxvel, stack0])
-    return loop[-1]
 '''
 
 class ElasticRodS:

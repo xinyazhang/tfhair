@@ -19,7 +19,7 @@ def run_with_bc(n, h, crod_data, nrod_data, srod_data):
     crod = helper.create_TFRod(n)
     nrod = helper.create_TFRod(n)
     srod = helper.create_TFRod(n)
-    srod.InitTF() # TFRodCollisionImpulse requires tans for srod
+    srod.InitTF(nrod) # TFRodCollisionImpulse requires tans for srod
     sela = tf.placeholder(shape=[None, 1], dtype=tf.int32)
     selb = tf.placeholder(shape=[None, 1], dtype=tf.int32)
 

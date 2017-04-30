@@ -6,6 +6,8 @@ import test_V
 import test_T
 import test_M
 import test_batch_M
+import test_CCD
+import test_MCCD
 
 #sess = tf.InteractiveSession()
 #sess.run(tf.global_variables_initializer())
@@ -20,3 +22,5 @@ test_V.run()
 test_T.run()
 test_M.run()
 test_batch_M.run()
+test_CCD.run()
+test_MCCD.run()

@@ -458,6 +458,7 @@ class ElasticRodS:
     thetas = None
     restl = None
     omegas = None
+    midpoints = None # Cached
 
     tans = None
     refd1s = None
@@ -611,7 +612,7 @@ class ElasticRodS:
     def UpdateVariable(self, vl):
         [self.xs, self.xdots, self.thetas, self.omegas, self.refd1s, self.refd2s] = vl
 
-    def Relax(self, sess, irod, icond, ccd_h=None, SelS=None, options=None, run_metadata=None):
+    def Relax(self, sess, irod, icond, ccd_h=None, ccd_broadthresh=10.0, options=None, run_metadata=None):
         h = ccd_h
         inputdict = helper.create_dict([irod], [icond])
         sess.run(self.init_op, feed_dict=inputdict, options=options, run_metadata=run_metadata)
@@ -633,7 +634,7 @@ class ElasticRodS:
                 '''
             if h is not None:
                 ccddict = helper.create_dict([irod], [icond])
-                ccddict.update({self.sela: SelS[0], self.selb: SelS[1]})
+                ccddict.update({self.ccd_threshold: ccd_broadthresh})
                 leaving = self.DetectAndApplyImpulse(sess, h, ccddict)
                 if leaving:
                     break
@@ -722,10 +723,16 @@ class ElasticRodS:
         sqnorm = tf.reduce_sum(tf.multiply(avexdot, avexdot), 1, keep_dims=False)
         return 0.5 * tf.reduce_sum(rod.restl * sqnorm)
 
-    # TODO: Node to Calculate sela/selb
-    def CreateCCDNode(self, irod, h):
-        self.sela = tf.placeholder(shape=[None, 2], dtype=tf.int32)
-        self.selb = tf.placeholder(shape=[None, 2], dtype=tf.int32)
+    def CreateCCDNode(self, irod, h, thresholds=None):
+        midpoints = self.GetMidPointsTF()
+        if thresholds is None:
+            self.ccd_threshold = tf.placeholder(dtype=tf.float32)
+        else:
+            self.ccd_threshold = thresholds
+        distance_pairs = TFDistanceFilter(h, midpoints, self.ccd_threshold)
+        distance_pairs = tf.cast(distance_pairs, tf.int32)
+        self.sela = tf.slice(distance_pairs, [0, 0], [-1, 2])
+        self.selb = tf.slice(distance_pairs, [0, 2], [-1, 2])
         self.impulse_with_sels = TFRodCollisionImpulse(h, irod, self, self, self.sela, self.selb)
         self.appled_xs = TFApplyImpulse(h, self,\
                 self.impulse_with_sels[1],\
@@ -743,6 +750,12 @@ class ElasticRodS:
         # print('xs after impulse {}'.format(sess.run(self.xs, feed_dict=inputdict)))
         return len(sel) == 0
         # return True
+
+    def GetMidPointsTF(self):
+        if self.midpoints is None:
+            xs_i_1, xs_i = _diffslices(self.xs)
+            self.midpoints = (xs_i_1 + xs_i) / 2.0
+        return self.midpoints
 
 def TFInitRod(rod):
     return rod.InitTF(None)

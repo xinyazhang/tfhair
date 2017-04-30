@@ -26,8 +26,8 @@ def run_with_bc(n, h, rho, icond, path):
 
     # TODO: Calulate SelS in ElasticRodS directly.
     ''' This check collision b/w Rod 0 Seg # and Rod 1 Seg # '''
-    sela_data = np.array([[0, i] for i in range(n)])
-    selb_data = np.array([[1, i] for i in range(n)])
+    # sela_data = np.array([[0, i] for i in range(n)])
+    # selb_data = np.array([[1, i] for i in range(n)])
 
     # pfe = TFGetEConstaint(irod)
     saver = helper.RodSaver(path)
@@ -39,7 +39,7 @@ def run_with_bc(n, h, rho, icond, path):
             for frame in range(nframe):
                 #inputdict = {irod.xs:xs, irod.restl:rl, irod.thetas:thetas, irod.xdots:xdots, irod:omegas:omegas}
                 inputdict = helper.create_dict([irod], [icond])
-                inputdict.update({rrod.sela: sela_data, rrod.selb: selb_data})
+                # inputdict.update({rrod.sela: sela_data, rrod.selb: selb_data})
                 # print(inputdict)
                 saver.add_timestep(
                     [icond.xs],
@@ -52,7 +52,7 @@ def run_with_bc(n, h, rho, icond, path):
                 # print(orod.XForce.eval(feed_dict=inputdict))
                 # print("xdots {}".format(xdots))
                 # print("thetas {}".format(icond.thetas))
-                icond = rrod.Relax(sess, irod, icond, ccd_h=h, SelS=[sela_data, selb_data])
+                icond = rrod.Relax(sess, irod, icond, ccd_h=h, ccd_broadthresh=30.0)
                 # print("refd1s {}".format(icond.refd1s))
                 # print("refd2s {}".format(icond.refd2s))
                 progress.update(frame+1)

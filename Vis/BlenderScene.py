@@ -26,8 +26,8 @@ class Scene(object):
     def Init(self):
         self.Activate()
         self.DeleteObjectByName("Cube")
-        self.DeleteObjectByName("Camera")
-        self.DeleteObjectByName("Lamp")
+        # self.DeleteObjectByName("Camera")
+        # self.DeleteObjectByName("Lamp")
 
     def SetViewportShading(self, view="VIEW_3D", shading="MATERIAL"):
         self.Activate()
@@ -158,7 +158,7 @@ class HairScene(Scene):
         refd2s = _expand_to(data["refd2s"], 4)
         n_batch, n_rods, n_centerpoints, _ = xs.shape
 
-        obj = bpy.context.object
+        obj = bpy.data.objects["Head"]
         particle_system = obj.particle_systems[0]
         hairs = particle_system.particles
         n_rods = len(hairs)
@@ -170,7 +170,7 @@ class HairScene(Scene):
                 hv.co = world2local * mathutils.Vector(xs[0,i,j,:])
 
     def Dump(self, filename):
-        obj = bpy.context.object
+        obj = bpy.data.objects["Head"]
         hairs = obj.particle_systems[0].particles
         n_rods = len(hairs)
         n_segs = len(hairs[0].hair_keys) - 1

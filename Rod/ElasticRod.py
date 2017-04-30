@@ -477,6 +477,7 @@ class ElasticRodS:
         self.alpha = other.alpha
         self.beta = other.beta
         self.g = other.g
+        self.gamma = other.gamma
         self.floor_z = other.floor_z
         self.anchors = other.anchors
         self.anchor_masks = other.anchor_masks
@@ -769,16 +770,8 @@ def TFKineticD(rod):
     return 0.5 * tf.reduce_sum(rod.restl * sqnorm)
 
 def TKGetForbiddenSphere(center, radius, rod):
-    # shape = rod.tans.get_shape().as_list()
-    # num = shape[0]  # TODO: need to port it to work for multiple rods
-    # x_i_1 = _trimslices(rod.xs, margins=[0, 1])
-    # centers = tf.tile(center, [num,])
-    # centers = tf.reshape(centers, [num,3])
-    # offset = centers - x_i_1
-    # distv = offset - _dot(offset, rod.tans) * rod.tans
-    # dist2 = _dot(distv, distv)
-    # radii = tf.tile(radius, [num,])
-    # return -tf.reduce_sum(tf.nn.relu(radii - dist2))
+    xs_i_1, xs_i = _diffslices(rod.xs, 0)
+    midpoints = (xs_i_1 + xs_i) / 2.0
     dist = rod.xs - center
     dist2 = _dot(dist, dist)
     diff2 = radius * radius - dist2

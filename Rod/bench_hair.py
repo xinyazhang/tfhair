@@ -91,6 +91,7 @@ def run_hair_bench(matfile):
     icond.beta = 0.001
     icond.g = 9.8
     icond.body_collision = HeadCollisionPotential
+    icond.gamma = 10
 
     n_rods, n_segs = thetas.shape
     h = 1.0/1024.0

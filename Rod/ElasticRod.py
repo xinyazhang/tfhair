@@ -384,6 +384,7 @@ class ElasticRodS:
     alpha = 1.0
     beta = 1.0
     g = 0.0
+    gamma = 1e2         # penalty stiffness for rigid body collision
     floor_z = -50.0
 
     def clone_args_from(self, other):
@@ -396,12 +397,14 @@ class ElasticRodS:
         self.floor_z = other.floor_z
         self.anchors = other.anchors
         self.anchor_masks = other.anchor_masks
+        self.body_collision = other.body_collision
         return self
 
     c = None # Translation
     q = None # Rotation quaternion
     anchors = None # 2D tensor: N Rod x 3
     anchor_masks = None # 2D tensor: N Rod x 1
+    body_collision = None
 
     '''
     Convention of additional tensors
@@ -461,6 +464,8 @@ class ElasticRodS:
                 + self.beta * pseudonrod.GetETwistTF() \
                 + pseudonrod.GetEGravityTF() \
                 # + _stiff * pseudonrod.GetEConstaintTF()
+        if self.body_collision is not None:
+            E += self.body_collision(pseudonrod)
         # print('E: {}'.format(E))
         # print('pseudonrod.xs: {}'.format(pseudonrod.xs))
         # print('pseudonrod.thetas: {}'.format(pseudonrod.thetas))
@@ -680,3 +685,19 @@ def TFKineticD(rod):
     sqnorm = tf.reduce_sum(tf.multiply(avexdot, avexdot), 1, keep_dims=False)
     return 0.5 * tf.reduce_sum(rod.restl * sqnorm)
 
+def TKGetForbiddenSphere(center, radius, rod):
+    # shape = rod.tans.get_shape().as_list()
+    # num = shape[0]  # TODO: need to port it to work for multiple rods
+    # x_i_1 = _trimslices(rod.xs, margins=[0, 1])
+    # centers = tf.tile(center, [num,])
+    # centers = tf.reshape(centers, [num,3])
+    # offset = centers - x_i_1
+    # distv = offset - _dot(offset, rod.tans) * rod.tans
+    # dist2 = _dot(distv, distv)
+    # radii = tf.tile(radius, [num,])
+    # return -tf.reduce_sum(tf.nn.relu(radii - dist2))
+    dist = rod.xs - center
+    dist2 = _dot(dist, dist)
+    diff2 = radius * radius - dist2
+    clamp = tf.nn.relu(diff2)
+    return rod.gamma * clamp

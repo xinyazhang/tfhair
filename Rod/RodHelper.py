@@ -138,8 +138,19 @@ def create_dict(irods, drods):
             tups.append((irod.refd2s, drod.refd2s))
         if irod.anchors is not None:
             tups.append((irod.anchors, drod.anchors))
+        if irod.sparse_anchor_indices is not None:
+            tups.append((irod.sparse_anchor_indices, drod.sparse_anchor_indices))
+            tups.append((irod.sparse_anchor_values, drod.sparse_anchor_values))
 
     return dict(tups)
+
+def create_string(start, end, nseg):
+    ret = [start]
+    for i in range(1, nseg):
+        r = float(i)/nseg
+        ret.append((1-r)*start + r * end)
+    ret.append(end)
+    return np.array(ret)
 
 class RodSaver():
 

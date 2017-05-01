@@ -154,22 +154,16 @@ def TFPropogateRefDs(prod, crod, normalize=False):
         crod.refd2s = _normalize(crod.refd2s)
     return crod
 
-def TFRodXSel(rod, Sel):
-    xs_i_1, xs_i = _diffslices(rod.xs, dim=_lastdim(rod.xs)-1)
+def TFRodXSel(xs, Sel):
+    xs_i_1, xs_i = _diffslices(xs, dim=_lastdim(xs)-1)
     gxs_i_1 = tf.gather_nd(xs_i_1, Sel)
     gxs_i = tf.gather_nd(xs_i, Sel)
-    # FIXME: More general cases
-    # gxs_i_1.set_shape([None, 3])
-    # gxs_i.set_shape([None, 3])
     return gxs_i_1, gxs_i
 
-def TFRodXDotSel(rod, Sel):
-    xdots_i_1, xdots_i = _diffslices(rod.xdots, dim=_lastdim(rod.xdots)-1)
+def TFRodXDotSel(xdots, Sel):
+    xdots_i_1, xdots_i = _diffslices(xdots, dim=_lastdim(xdots)-1)
     gxdots_i_1 = tf.gather_nd(xdots_i_1, Sel)
     gxdots_i = tf.gather_nd(xdots_i, Sel)
-    # FIXME: More general cases
-    # gxdots_i_1.set_shape([None, 3])
-    # gxdots_i.set_shape([None, 3])
     return (gxdots_i_1 + gxdots_i) / 2.0
 
 def TFConvexityByList(tensormat):
@@ -217,12 +211,12 @@ def TFRodCCDExtended(crod, nrod, srod, ASelS, BSelS):
     Note: assumes 2 now, 4 may use TFRodSCCD
     '''
     ''' Gathered Current Xs '''
-    gcxs_k_1, gcxs_k = TFRodXSel(crod, ASelS)
+    gcxs_k_1, gcxs_k = TFRodXSel(crod.xs, ASelS)
     # print(gcxs_k.get_shape())
     # return tf.shape(gcxs_k)
     ''' Gathered Next Xs '''
-    gnxs_k_1, gnxs_k = TFRodXSel(nrod, ASelS)
-    npoles, spoles = TFRodXSel(srod, BSelS) # FIXME: use srod based reference system
+    gnxs_k_1, gnxs_k = TFRodXSel(nrod.xs, ASelS)
+    npoles, spoles = TFRodXSel(srod.xs, BSelS) # FIXME: use srod based reference system
     verts = [
             [npoles, gcxs_k_1, gcxs_k, gnxs_k, gnxs_k_1, spoles],
             [npoles, gcxs_k, gnxs_k, gnxs_k_1, gcxs_k_1, spoles],
@@ -244,7 +238,6 @@ def TFRodCCD(crod, nrod, srod, ASelS, BSelS):
 def ConvexityFilter(SelS_in, convexity):
     return tf.gather_nd(SelS_in, tf.where(tf.equal(convexity, True)))
 
-# TODO: merge with TFRodCCD
 def TFRodCollisionImpulse(h, crod, nrod, srod, ASelS_in, BSelS_in, convexity = None):
     gcxs_k = None
     if convexity is None:
@@ -253,14 +246,14 @@ def TFRodCollisionImpulse(h, crod, nrod, srod, ASelS_in, BSelS_in, convexity = N
     BSelS = ConvexityFilter(BSelS_in, convexity)
 
     ''' Gathered Current Xs '''
-    gcxs_k_1, gcxs_k = TFRodXSel(crod, ASelS)
+    gcxs_k_1, gcxs_k = TFRodXSel(crod.xs, ASelS)
     ''' Gathered Next Xs '''
-    gnxs_k_1, gnxs_k = TFRodXSel(nrod, ASelS)
+    gnxs_k_1, gnxs_k = TFRodXSel(nrod.xs, ASelS)
 
     gqdots = ((gnxs_k_1 - gcxs_k_1) + (gnxs_k - gcxs_k)) / (2 * h)
     # return tf.shape(gnxs_k_1)
     # return tf.shape(gqdots)
-    grqdots = TFRodXDotSel(srod, BSelS)
+    grqdots = TFRodXDotSel(srod.xdots, BSelS)
     relqdots = gqdots - grqdots
     gtans = tf.gather_nd(srod.tans, BSelS)
     # return relqdots
@@ -269,14 +262,11 @@ def TFRodCollisionImpulse(h, crod, nrod, srod, ASelS_in, BSelS_in, convexity = N
     gnormals = tf.cross(gtans, tf.cross(gtans, relqdots))
     gsegmass = _paddim(tf.gather_nd(nrod.restl, ASelS))
     # print('gmass: {}'.format(gmass))
+    # TODO: This is just for debug
+    srod.convexity = convexity
     return 0.5 * h * gnormals * gsegmass, ASelS, BSelS
 
 def TFApplyImpulse(h, rods, ASelS, BSelS, impulse):
-    # TODO: apply impulse to Rod B
-    # deltaVB = tf.SparseTensor(BSelS, -impulse)
-    # delta = deltaVA + deltaVB
-    # deltaVA = tf.SparseTensor(ASelS, impulse * 2, dense_shape=rods.xs.get_shape())
-    # delta = deltaVA
     ASelX = ASelS
     BSelX = BSelS
     ASelX_p1 = ASelS + tf.constant([0,1])
@@ -331,7 +321,7 @@ def TFSegmentVsSegmentDistanceFilterNoCat(h, i, j, xs, sqnxs, thresh, to_stack):
     tmp2 = tf.concat([to_stack, tmp1], axis=0)
     return tmp2
 
-# Innerloop for i != j
+# Innerloop (#, i) vs (#, j) for i != j
 # FIXME: Refactor to merge this function with NoCat version
 def TFSegmentVsSegmentDistanceFilterNoInnerCross(h, i, j, xs, sqnxs, thresh, to_stack):
     nrods = tf.cast(tf.shape(xs)[0], tf.int64)
@@ -361,46 +351,6 @@ def TFSegmentVsSegmentDistanceFilterNoInnerCross(h, i, j, xs, sqnxs, thresh, to_
     # return tmp2, D, crossterm, indices, Arods, Brods
     return tmp2
 
-'''
-def TFSegmentVsSegmentDistanceFilter(h, i, j, xs, sqnxs, thresh, to_stack):
-    # print(type(i))
-    # print(type(j))
-    nrods = tf.cast(tf.shape(xs)[0], tf.int64)
-    xsi = _pick_segment_from_rods(xs, i)
-    xsj = _pick_segment_from_rods(xs, j)
-    # print('xsi: {}'.format(xsi))
-    xst = tf.concat([xsi, xsj], axis=0)
-    crossterm = -2 * tf.matmul(xst, xst, transpose_b=True)
-    sqnxsi = _pick_segment_from_rods(sqnxs, i)
-    sqnxsj = _pick_segment_from_rods(sqnxs, j)
-    sqnxst = tf.concat([sqnxsi, sqnxsj], axis=0)
-    D = (crossterm + sqnxst) + tf.transpose(sqnxst)
-    indices = tf.where(tf.less(D, thresh * h * _distance_bound_ratio))
-    #print(indices)
-    Arods,Brods = tf.unstack(indices, 2, axis=1)
-    # print(Arods)
-    processed = tf.where(tf.less_equal(Arods, Brods)) # Only consider pairs (Alpha, i) (Beta, j) where Alpha < Beta
-    # print(processed)
-    ArodsRemain = tf.gather_nd(Arods, processed)
-    BrodsRemain = tf.gather_nd(Brods, processed)
-    ArodsRelabel = _translate_from_stacked(nrods, i, j, ArodsRemain)
-    BrodsRelabel = _translate_from_stacked(nrods, i, j, BrodsRemain)
-    if to_stack is None:
-        # return ArodsRelabel, BrodsRelabel
-        return indices, D, Arods, Brods, processed, ArodsRemain, BrodsRemain, nrods, ArodsRelabel, BrodsRelabel
-        # return tf.concat([ArodsRelabel, BrodsRelabel], axis=_lastdim(ArodsRelabel))
-    else:
-        # print(ArodsRelabel)
-        # print(BrodsRelabel)
-        tmp1 = tf.concat([ArodsRelabel, BrodsRelabel], axis=_lastdim(ArodsRelabel))
-        # print(tmp1)
-        tmp2 = tf.concat([to_stack, tmp1], axis=0)
-        #tmp2 = tf.concat([to_stack, tmp1], axis=0)
-        # print(tmp2)
-        return tmp2
-    # return tf.concat([to_stack, indices])
-'''
-
 # Middle loop
 def TFSpecificSegmentDistanceFilter(h, maxsegidx, midpoints, sqmidpoints, segmaxvel, to_stack):
     # print(type(idxseg))
@@ -420,7 +370,6 @@ def TFSpecificSegmentDistanceFilter(h, maxsegidx, midpoints, sqmidpoints, segmax
 def TFDistanceFilter(h, midpoints, thresholds):
     sqnmidpoints = _dot(midpoints, midpoints, keep_dims=True)
     nsegs = tf.cast(tf.shape(midpoints)[1], dtype=tf.int64)
-    # TODO: stack0
     i0 = tf.constant(0, dtype=tf.int64)
     stack0 = -1 * tf.ones(shape=[1,4], dtype=tf.int64)
     loop_cond = lambda i, _1, _2, _3, _4: tf.less(i, nsegs)
@@ -430,16 +379,6 @@ def TFDistanceFilter(h, midpoints, thresholds):
     shape_inv[-1] = tf.TensorShape([None,4])
     loop = tf.while_loop(loop_cond, loop_body, loop_vars=ivalues, shape_invariants=shape_inv)
     return tf.slice(loop[-1], [1, 0], [-1, -1])
-
-'''
-    assert _ndim(rods.xs) == 3, "TFDistanceFilter requires ElasticRodS object with multiple rods, i.e. .xs member must be a 3D tensor"
-    nsegs = tf.shape(rods.xs)[1]
-    x_i_1, x_i = _diffslices(rods.xs)
-    midpoints = (xs_i_1 + x_i) / 2.0
-    velns = tf.norm(rods.xdots, axis=_lastdim(rods.xdots))
-    veln_i_1, veln_i = _diffslices(velns)
-    segmaxvel = tf.maximum(veln_i_1, veln_i)
-'''
 
 class ElasticRodS:
 
@@ -470,6 +409,10 @@ class ElasticRodS:
     g = 0.0
     gamma = 1e1         # penalty stiffness for rigid body collision
     floor_z = -50.0
+    constraint_tolerance = 1e-9
+    anchor_stiffness = 1
+
+    ccd_threshold = None
 
     def clone_args_from(self, other):
         if other is None:
@@ -480,15 +423,19 @@ class ElasticRodS:
         self.g = other.g
         self.gamma = other.gamma
         self.floor_z = other.floor_z
+        self.constraint_tolerance = other.constraint_tolerance
+        self.anchor_stiffness = other.anchor_stiffness
         self.anchors = other.anchors
-        self.anchor_masks = other.anchor_masks
         self.body_collision = other.body_collision
+        self.sparse_anchor_indices = other.sparse_anchor_indices
+        self.sparse_anchor_values = other.sparse_anchor_values
         return self
 
     c = None # Translation
     q = None # Rotation quaternion
-    anchors = None # 2D tensor: N Rod x 3
-    anchor_masks = None # 2D tensor: N Rod x 1
+    anchors = None # 2D tensor: N Rod x 3, representing root of each rod
+    sparse_anchor_indices = None # 2D tensor, [None] x 2
+    sparse_anchor_values = None # 2D tensor, [None] x 3
     body_collision = None
 
     '''
@@ -624,7 +571,7 @@ class ElasticRodS:
                 E, _ = sess.run([self.loss, self.apply_grads_op], feed_dict=inputdict, options=options, run_metadata=run_metadata)
                 if i % 1 == 0:
                     # print('loss (iter:{}): {}'.format(i, E))
-                    if math.fabs(E) < 1e-9:
+                    if math.fabs(E) < self.constraint_tolerance:
                         # print('Leaving at Iter {}'.format(i))
                         break
                 '''
@@ -674,7 +621,11 @@ class ElasticRodS:
             size[-2] = 1
             firstX = tf.unstack(tf.slice(rod.xs, start, size), axis=ndim - 2)[0]
             diff = firstX - rod.anchors
-            total += tf.reduce_sum(_dot(diff, diff))
+            total += tf.reduce_sum(_dot(diff, diff)) * rod.anchor_stiffness
+        elif rod.sparse_anchor_indices is not None:
+            gxs = tf.gather_nd(rod.xs, rod.sparse_anchor_indices)
+            diff = rod.sparse_anchor_values - gxs
+            total += tf.reduce_sum(_dot(diff, diff)) * rod.anchor_stiffness
         return total
 
     def GetEBendTF(rod):
@@ -703,6 +654,8 @@ class ElasticRodS:
         return tf.reduce_sum(tf.multiply(deltatheta*deltatheta, 1.0/rod.innerrestvl))
 
     def GetEGravityTF(rod):
+        if rod.g == 0.0:
+            return tf.constant(0.0)
         z_begin = list([0] * len(rod.xs.get_shape()))
         z_begin[-1] = 2
         z_size = list([-1] * len(rod.xs.get_shape()))
@@ -745,10 +698,14 @@ class ElasticRodS:
 
     def DetectAndApplyImpulse(self, sess, h, inputdict):
         # print('xs before impulse {}'.format(sess.run(self.xs, feed_dict=inputdict)))
-        sel,_ = sess.run([self.impulse_with_sels[1], self.apply_impulse_op], feed_dict=inputdict)
+        ops = [self.impulse_with_sels[1], self.impulse_with_sels[2], self.apply_impulse_op]
+        sela_results, selb_results,_ = sess.run(ops, feed_dict=inputdict)
+        cvx = sess.run(self.convexity, feed_dict=inputdict)
+        # print('detected collision {}'.format(np.concatenate([sela_results, selb_results], axis=1)))
+        # print('convexity list {}'.format(cvx))
         # print(sess.run(self.impulse_with_sels, feed_dict=inputdict))
         # print('xs after impulse {}'.format(sess.run(self.xs, feed_dict=inputdict)))
-        return len(sel) == 0
+        return len(sela_results) == 0
         # return True
 
     def GetMidPointsTF(self):

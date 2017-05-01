@@ -152,8 +152,23 @@ def run_test1():
 
 def run_test2():
     '''
-    Test 2: ConvexityFilter
+    Test 2: parallel rods
     '''
+    return # FIXME: test parallel rods
+    h = 1.0/1024.0
+    n = 20
+    thresh_value = 50.0
+    xs = tf.placeholder(shape=[2,n+1,3], dtype=tf.float32)
+    sqnxs = _dot(xs, xs, keep_dims=True)
+    thresh = tf.constant(thresh_value * thresh_value/h)
+
+    roda_xs = helper.create_string(np.array([0,0,-2.5]), np.array([0,0,2.5]), n)
+    rodb_xs = helper.create_string(np.array([1,0.01,-2.5]), np.array([1,0.01,2.5]), n)
+    rods_xs = np.array([rodb_xs, roda_xs]) # B First
+
+    complete = TFDistanceFilter(h, xs, thresh)
+
+    stack0 = -1 * tf.ones(shape=[1,4], dtype=tf.int64)
 
 def run():
     run_test0()

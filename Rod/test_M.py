@@ -351,7 +351,7 @@ def run_test9():
 
     icond.anchors = np.array([0,0,1])
     icond.body_collision = CollisionCheck
-    # icond.g = 9.8
+    icond.g = 9.8
 
     run_with_bc(n, h, rho, icond, '/tmp/tftest9', icond_updater=FixedAnchor)
 
@@ -368,5 +368,4 @@ def run():
     run_test9()
 
 if __name__ == '__main__':
-    # run()
-    run_test9()
+    run()

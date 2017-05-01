@@ -16,6 +16,16 @@ class Scene(object):
         self.scene = bpy.data.scenes[scene]
         self.scene.render.fps = fps
         if scene == 0: self.Init()
+        # scene loading
+        self.loaded_frames = set()
+        self.last_loaded = None
+        self.cache_path = None
+
+    def IsFrameLoaded(self, frame):
+        return frame in self.loaded_frames
+
+    def SetCachePath(self, path):
+        self.cache_path = path
 
     # switch this scene as active scene
     def Activate(self):
@@ -78,6 +88,10 @@ class Scene(object):
         self.scene.frame_end = keyframe
 
     def Load(self, frame, filename):
+        # check frame loaded
+        if self.IsFrameLoaded(frame):
+            return
+        # actual loading
         mdict = {}
         scipy.io.loadmat(filename, mdict)
         self.Update(frame, mdict)
@@ -98,6 +112,9 @@ class RodScene(Scene):
         self.rods =None
 
     def Update(self, frame, data):
+        # mark frame as loaded
+        self.loaded_frames.add(frame)
+
         keyframe = self.ComputeKeyframe(frame)
         self.SetDuration(frame)
 
@@ -126,21 +143,12 @@ class HairScene(Scene):
         super(HairScene, self).__init__(fps, scene)
         self.number = scene
         self.scene.tool_settings.use_keyframe_insert_auto = True
-        self.cache_path = None
-        self.loaded_frames = set()
-        self.last_loaded = None
         self.anchors = None
-
-    def SetCachePath(self, path):
-        self.cache_path = path
 
     def SetMetadata(self, metadata):
         mdict = dict()
         scipy.io.loadmat(metadata, mdict)
         self.anchors = mdict["anchor"]
-
-    def IsFrameLoaded(self, frame):
-        return frame in self.loaded_frames
 
     def Load(self, frame, filename):
         if self.last_loaded == frame:

@@ -468,7 +468,7 @@ class ElasticRodS:
     alpha = 1.0
     beta = 1.0
     g = 0.0
-    gamma = 1e2         # penalty stiffness for rigid body collision
+    gamma = 5e2         # penalty stiffness for rigid body collision
     floor_z = -50.0
 
     def clone_args_from(self, other):
@@ -789,4 +789,4 @@ def TKGetForbiddenSphere(center, radius, rod):
     dist2 = _dot(dist, dist)
     diff2 = radius * radius - dist2
     clamp = tf.nn.relu(diff2)
-    return rod.gamma * clamp
+    return rod.gamma * tf.reduce_sum(clamp)

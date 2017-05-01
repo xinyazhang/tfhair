@@ -468,7 +468,7 @@ class ElasticRodS:
     alpha = 1.0
     beta = 1.0
     g = 0.0
-    gamma = 1e2         # penalty stiffness for rigid body collision
+    gamma = 1e1         # penalty stiffness for rigid body collision
     floor_z = -50.0
 
     def clone_args_from(self, other):
@@ -550,7 +550,7 @@ class ElasticRodS:
                 + pseudonrod.GetEGravityTF() \
                 # + _stiff * pseudonrod.GetEConstaintTF()
         if self.body_collision is not None:
-            E += self.body_collision(pseudonrod)
+            E += self.gamma * self.body_collision(pseudonrod)
         # print('E: {}'.format(E))
         # print('pseudonrod.xs: {}'.format(pseudonrod.xs))
         # print('pseudonrod.thetas: {}'.format(pseudonrod.thetas))
@@ -783,10 +783,10 @@ def TFKineticD(rod):
     return 0.5 * tf.reduce_sum(rod.restl * sqnorm)
 
 def TKGetForbiddenSphere(center, radius, rod):
-    xs_i_1, xs_i = _diffslices(rod.xs, 0)
-    midpoints = (xs_i_1 + xs_i) / 2.0
-    dist = rod.xs - center
+    midpoints = rod.GetMidPointsTF()
+    dist = midpoints - center
     dist2 = _dot(dist, dist)
     diff2 = radius * radius - dist2
-    clamp = tf.nn.relu(diff2)
-    return rod.gamma * clamp
+    vel = tf.norm(rod.xdots)
+    clamp = tf.nn.relu(diff2) * vel
+    return tf.reduce_sum(clamp)

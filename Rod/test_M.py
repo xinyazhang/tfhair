@@ -12,7 +12,7 @@ import math
 from math import pi
 import progressbar
 
-def run_with_bc(n, h, rho, icond, path, icond_updater=None):
+def run_with_bc(n, h, rho, icond, path, icond_updater=None, obstacle=None):
     '''
     Run the simulation with given boundary conditions (icond)
     '''
@@ -24,8 +24,8 @@ def run_with_bc(n, h, rho, icond, path, icond_updater=None):
 
     orod = irod.CalcNextRod(h)
     rrod = orod.CalcPenaltyRelaxationTF(h)
-    if icond.obstacles is not None:
-        rrod.obstacle_impulse_op = icond.obstacles.DetectAndApplyImpulseOp(h, rrod)
+    if obstacle is not None:
+        rrod.obstacle_impulse_op = obstacle.DetectAndApplyImpulseOp(h, rrod)
 
     # pfe = TFGetEConstaint(irod)
     saver = helper.RodSaver(path)
@@ -40,11 +40,15 @@ def run_with_bc(n, h, rho, icond, path, icond_updater=None):
                 #inputdict = {irod.xs:xs, irod.restl:rl, irod.thetas:thetas, irod.xdots:xdots, irod:omegas:omegas}
                 inputdict = helper.create_dict([irod], [icond])
                 # print(inputdict)
+                spheres = None
+                if obstacle is not None:
+                    spheres = obstacle.GetSpheres()
                 saver.add_timestep(
                     [icond.xs],
                     [icond.thetas],
                     [icond.refd1s],
-                    [icond.refd2s])
+                    [icond.refd2s],
+                    spheres)
                 # xs, xdots, thetas, omegas = sess.run([orod.xs, orod.xdots,
                 #    orod.thetas, orod.omegas], feed_dict=inputdict)
                 # print(pfe.eval(feed_dict=inputdict))
@@ -322,9 +326,8 @@ def run_test8():
             initd1=np.array([0,1,0]))
     icond.alpha = 0.01
     icond.beta = 0.01
-    icond.obstacles = obstacle
 
-    run_with_bc(n, h, rho, icond, '/tmp/tftest8')
+    run_with_bc(n, h, rho, icond, '/tmp/tftest8', obstacle=obstacle)
 
 def FixedAnchor(h, icond):
     icond.anchors = np.array([0.0, 0.0, 1.0])
@@ -353,12 +356,11 @@ def run_test9():
             initd1=np.array([0,1,0]))
     icond.alpha = 0.01
     icond.beta = 0.01
-    icond.obstacles = obstacle
 
     icond.anchors = np.array([0,0,1])
     icond.g = 9.8
 
-    run_with_bc(n, h, rho, icond, '/tmp/tftest9', icond_updater=FixedAnchor)
+    run_with_bc(n, h, rho, icond, '/tmp/tftest9', icond_updater=FixedAnchor, obstacle=obstacle)
 
 def run():
     run_test0()
@@ -373,6 +375,4 @@ def run():
     run_test9()
 
 if __name__ == '__main__':
-    # run()
-    run_test8()
-    run_test9()
+    run()

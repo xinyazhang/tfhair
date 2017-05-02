@@ -35,6 +35,9 @@ class SphericalBodyS(object):
         self.centers = centers
         self.radii = radii
 
+    def GetSpheres(self):
+        return zip(self.centers, self.radii)
+
     def DetectAndApplyImpulseOp(self, h, rod):
         impulse_ops = []
         for center, radius in zip(self.centers, self.radii):

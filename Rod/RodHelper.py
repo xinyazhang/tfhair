@@ -171,13 +171,16 @@ class RodSaver():
     def close(self):
         pass
 
-    def add_timestep(self, cpos, thetas, refd1s, refd2s):
+    def add_timestep(self, cpos, thetas, refd1s, refd2s, spheres=None):
         filename = os.path.join(self.directory, str(self.frame))
         mdict = {
             "cpos"   : np.array(cpos),
             "thetas" : np.array(thetas),
             "refd1s" : np.array(refd1s),
-            "refd2s" : np.array(refd2s)
+            "refd2s" : np.array(refd2s),
         }
+        if spheres is not None:
+            mdict["spheres"] = spheres
+
         scipy.io.savemat(filename, mdict, appendmat=True)
         self.frame += 1

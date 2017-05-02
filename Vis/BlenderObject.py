@@ -10,6 +10,28 @@ def CreateBevelCircle():
         bpy.data.objects["BezierCircle"].hide = True
     return bpy.data.objects["BezierCircle"]
 
+class Sphere(object):
+
+    def __init__(self):
+        self.spheres = []
+
+    def _InitObject(self):
+        bpy.ops.mesh.primitive_uv_sphere_add(segments=24, ring_count=24, size=1,enter_editmode=False, location=(0, 0, 0))
+        ob = bpy.context.object
+        ob.name = "obstacle.sphere.%d" % len(self.spheres)
+        me = ob.data
+        me.name = "obstacle.sphere.%d.mesh" % len(self.spheres)
+        self.spheres.append(ob)
+
+    def Update(self, keyframe, spheres):
+        for i, (center, radius) in enumerate(spheres):
+            if i >= len(self.spheres):
+                self._InitObject()
+            self.spheres[i].location = center[0]
+            self.spheres[i].scale = [ radius[0] ] * 3
+            self.spheres[i].keyframe_insert('location', frame=keyframe)
+            self.spheres[i].keyframe_insert('scale', frame=keyframe)
+
 class AxisFrame(object):
 
     def __init__(self, name, radius=0.002, length=0.5):
@@ -123,13 +145,14 @@ class Rod(object):
         # add sphere indicator for vertices
         self.vertices = []
         for i in range(knots):
-            bpy.ops.mesh.primitive_uv_sphere_add(segments=12, ring_count=6, size=self.radius*2,enter_editmode=False, location=(0, 0, 0))
-            ob = bpy.context.object
-            ob.name = "rod-%s-sphere.%s" % (self.name, i)
-            me = ob.data
+            me = bpy.data.meshes.new('Sphere')
             me.name = "rod-%s-sphere.%s.mesh" % (self.name, i)
+            ob = bpy.data.objects.new('Sphere', me)
+            ob.name = "rod-%s-sphere.%s" % (self.name, i)
+            ob.scale = tuple([self.radius] * 3)
+            bpy.context.scene.objects.link(ob)
             self.vertices.append(ob)
-        # add material_frame frames
+        # add material_frames
         self.material_frames = [ Rod.axis.CreateInstance(i) for i in range(knots-1) ]
         n_dis_step = 1 if knots < 10 else int(knots / 10)
         for i in range(0, knots-1, n_dis_step):

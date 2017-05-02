@@ -110,6 +110,7 @@ class RodScene(Scene):
         super(RodScene, self).__init__(fps, scene)
         self.number = scene
         self.rods =None
+        self.obstacles = Sphere()
 
     def Update(self, frame, data):
         # mark frame as loaded
@@ -123,6 +124,7 @@ class RodScene(Scene):
         refd1s = _expand_to(data["refd1s"], 4)
         refd2s = _expand_to(data["refd2s"], 4)
         n_batch, n_rods, n_centerpoints, _ = xs.shape
+        spheres = data["spheres"]
         radius = data.get("radius", 0.02)
 
         # init rods
@@ -136,6 +138,11 @@ class RodScene(Scene):
         for i in range(n_batch):
             for j in range(n_rods):
                 self.rods[i][j].Update(keyframe, xs[i][j], ts[i][j], refd1s[i][j], refd2s[i][j])
+
+        # update obstacle
+        if spheres is not None:
+            self.obstacles.Update(keyframe, spheres)
+
 
 class HairScene(Scene):
 

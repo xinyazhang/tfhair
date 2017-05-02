@@ -408,10 +408,10 @@ class ElasticRodS:
     alpha = 1.0
     beta = 1.0
     g = 0.0
-    gamma = 1e1         # penalty stiffness for rigid body collision
     floor_z = -50.0
     constraint_tolerance = 1e-9
     anchor_stiffness = 1
+    obstacle_impulse_op = None
 
     ccd_threshold = None
 
@@ -422,14 +422,13 @@ class ElasticRodS:
         self.alpha = other.alpha
         self.beta = other.beta
         self.g = other.g
-        self.gamma = other.gamma
         self.floor_z = other.floor_z
         self.constraint_tolerance = other.constraint_tolerance
         self.anchor_stiffness = other.anchor_stiffness
         self.anchors = other.anchors
-        self.body_collision = other.body_collision
         self.sparse_anchor_indices = other.sparse_anchor_indices
         self.sparse_anchor_values = other.sparse_anchor_values
+        self.obstacle_impulse_op = other.obstacle_impulse_op
         return self
 
     c = None # Translation
@@ -437,7 +436,6 @@ class ElasticRodS:
     anchors = None # 2D tensor: N Rod x 3, representing root of each rod
     sparse_anchor_indices = None # 2D tensor, [None] x 2
     sparse_anchor_values = None # 2D tensor, [None] x 3
-    body_collision = None
     sela = None
     selb = None
 
@@ -499,8 +497,6 @@ class ElasticRodS:
                 + self.beta * pseudonrod.GetETwistTF() \
                 + pseudonrod.GetEGravityTF() \
                 # + _stiff * pseudonrod.GetEConstaintTF()
-        if self.body_collision is not None:
-            E += self.gamma * self.body_collision(pseudonrod)
         # print('E: {}'.format(E))
         # print('pseudonrod.xs: {}'.format(pseudonrod.xs))
         # print('pseudonrod.thetas: {}'.format(pseudonrod.thetas))
@@ -586,6 +582,7 @@ class ElasticRodS:
                     print('loss: {}'.format(E))
                 '''
             print('Leaving at Iter {} with Energy {} tolerance {}'.format(leaving_iter, E, self.constraint_tolerance))
+            print "obstacle impulse: ", sess.run(self.obstacle_impulse_op, feed_dict=inputdict, options=options, run_metadata=run_metadata)
             if h is not None:
                 ccddict = helper.create_dict([irod], [icond])
                 ccddict.update({self.ccd_threshold: ccd_broadthresh})
@@ -748,12 +745,3 @@ def TFKineticD(rod):
     avexdot = 0.5 * (xdot_i_1 + xdot_i)
     sqnorm = tf.reduce_sum(tf.multiply(avexdot, avexdot), 1, keep_dims=False)
     return 0.5 * tf.reduce_sum(rod.restl * sqnorm)
-
-def TKGetForbiddenSphere(center, radius, rod):
-    midpoints = rod.GetMidPointsTF()
-    dist = midpoints - center
-    dist2 = _dot(dist, dist)
-    diff2 = radius * radius - dist2
-    vel = tf.norm(rod.xdots)
-    clamp = tf.nn.relu(diff2) * vel
-    return tf.reduce_sum(clamp)

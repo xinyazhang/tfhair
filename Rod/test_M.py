@@ -5,6 +5,7 @@ Test for Motions
 
 import numpy as np
 from ElasticRod import *
+from Obstacle import *
 import RodHelper as helper
 import tensorflow as tf
 import math
@@ -20,11 +21,11 @@ def run_with_bc(n, h, rho, icond, path, icond_updater=None):
     irod.clone_args_from(icond)
     if icond.anchors is not None:
         irod.anchors = tf.placeholder(tf.float32, shape=icond.anchors.shape)
-    if icond.body_collision is not None:
-        irod.body_collision = icond.body_collision
 
     orod = irod.CalcNextRod(h)
     rrod = orod.CalcPenaltyRelaxationTF(h)
+    if icond.obstacles is not None:
+        rrod.obstacle_impulse_op = icond.obstacles.DetectAndApplyImpulseOp(h, rrod)
 
     # pfe = TFGetEConstaint(irod)
     saver = helper.RodSaver(path)
@@ -297,21 +298,21 @@ def run_test7():
     icond.beta = 0.01
     run_with_bc(n, h, rho, icond, '/tmp/tftest7', icond_updater=SinAnchor)
 
-def CollisionCheck(rod):
-    center = tf.Variable(np.array([0,0,0]), dtype=tf.float32, trainable=False)
-    radius = tf.Variable(np.array([1.0]), dtype=tf.float32, trainable=False)
-    return TKGetForbiddenSphere(center, radius, rod)
-
 def run_test8():
     '''
     Test 8: collision with unit sphere
     '''
-    n = 3
+    centers = [ np.array([0.0, 0.0, 0.0]) ]
+    radii = [ np.array([1.0]) ]
+    obstacle = SphericalBodyS(centers, radii)
+
+    iterator = xrange(-5,6)
+    n = len(list(iterator)) - 1
     h = 1.0/1024.0
     rho = 1.0
 
-    xs = np.array([ [-1,-2,0], [0,-2,0], [1,-2,0], [2,-2,0], ])
-    xdots = np.array([ [0,10,0], [0,10,0], [0,10,0], [0,10,0], ])
+    xs = np.array([[i,-2,0] for i in iterator])
+    xdots = np.array([[0,100,0]] * (n+1))
     thetas = np.zeros(shape=[n], dtype=np.float32)
     omegas = np.zeros(shape=[n], dtype=np.float32)
     icond = helper.create_BCRod(xs=xs,
@@ -321,39 +322,39 @@ def run_test8():
             initd1=np.array([0,1,0]))
     icond.alpha = 0.01
     icond.beta = 0.01
-
-    icond.body_collision = CollisionCheck
+    icond.obstacles = obstacle
 
     run_with_bc(n, h, rho, icond, '/tmp/tftest8')
 
-def FixedAnchor(h, icond):
-    icond.anchors = np.array([0.0, 0.0, 1.0])
-
-def run_test9():
-    '''
-    Test 9: collision with anchors on unit sphere
-    '''
-    n = 3
-    h = 1.0/1024.0
-    rho = 1.0
-
-    xs = np.array([ [0,0,1], [0,0,2], [0,0,3], [0,0,4], ])
-    xdots = np.array([ [0,0,0], [0,30,0], [0,30,0], [0,30,0], ])
-    thetas = np.zeros(shape=[n], dtype=np.float32)
-    omegas = np.zeros(shape=[n], dtype=np.float32)
-    icond = helper.create_BCRod(xs=xs,
-            xdots=xdots,
-            thetas=thetas,
-            omegas=omegas,
-            initd1=np.array([0,1,0]))
-    icond.alpha = 0.01
-    icond.beta = 0.01
-
-    icond.anchors = np.array([0,0,1])
-    icond.body_collision = CollisionCheck
-    icond.g = 9.8
-
-    run_with_bc(n, h, rho, icond, '/tmp/tftest9', icond_updater=FixedAnchor)
+# def FixedAnchor(h, icond):
+#     icond.anchors = np.array([0.0, 0.0, 1.0])
+#
+# def run_test9():
+#     '''
+#     Test 9: collision with anchors on unit sphere
+#     '''
+#     iterator = xrange(1,11)
+#     n = len(list(iterator)) - 1
+#     h = 1.0/1024.0
+#     rho = 1.0
+#
+#     xs = np.array([[0,0,i] for i in iterator])
+#     xdots = np.array([[0,0,0]] + [[0,100,0]] * n)
+#     thetas = np.zeros(shape=[n], dtype=np.float32)
+#     omegas = np.zeros(shape=[n], dtype=np.float32)
+#     icond = helper.create_BCRod(xs=xs,
+#             xdots=xdots,
+#             thetas=thetas,
+#             omegas=omegas,
+#             initd1=np.array([0,1,0]))
+#     icond.alpha = 0.01
+#     icond.beta = 0.01
+#
+#     icond.anchors = np.array([0,0,1])
+#     icond.body_collision = CollisionCheck
+#     icond.g = 9.8
+#
+#     run_with_bc(n, h, rho, icond, '/tmp/tftest9', icond_updater=FixedAnchor)
 
 def run():
     run_test0()
@@ -365,7 +366,9 @@ def run():
     run_test6()
     run_test7()
     run_test8()
-    run_test9()
+    # run_test9()
 
 if __name__ == '__main__':
-    run()
+    # run()
+    run_test8()
+    # run_test9()

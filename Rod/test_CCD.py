@@ -151,26 +151,52 @@ def run_test1():
         ])
     test_static_rods(xs, xs2, xsv, False)
 
+class FakeRods:
+
+    def __init__(self):
+        self.xs = None
+
 def run_test2():
     '''
     Test 2: parallel rods
     '''
     f154 = spio.loadmat('testdata_ccd6/154.mat')
     f155 = spio.loadmat('testdata_ccd6/155.mat')
+    raw_shape = f154['cpos'].shape
+    cpos0 = f154['cpos'].reshape(raw_shape[1:])
+    cpos1 = f155['cpos'].reshape(raw_shape[1:])
+    print(cpos0)
+    print(cpos1)
+    # cpos1[0,:,:] += np.array([0,0,-0.1])
+    xsshape = cpos0.shape
+    print(xsshape)
+    crod = FakeRods()
+    nrod = FakeRods()
+    srod = FakeRods()
+    crod.xs = tf.placeholder(dtype=tf.float32, shape=xsshape)
+    nrod.xs = tf.placeholder(dtype=tf.float32, shape=xsshape)
+    srod.xs = tf.placeholder(dtype=tf.float32, shape=xsshape)
+
     h = 1.0/1024.0
-    n = 20
-    thresh_value = 50.0
-    xs = tf.placeholder(shape=[2,n+1,3], dtype=tf.float32)
-    sqnxs = _dot(xs, xs, keep_dims=True)
-    thresh = tf.constant(thresh_value * thresh_value/h)
+    n = xsshape[1] - 1
+    sela = tf.constant(np.array([[0, i] for i in range(n)]), dtype=tf.int32)
+    selb = tf.constant(np.array([[1, i] for i in range(n)]), dtype=tf.int32)
+    sela2 = tf.constant(np.array([[0, i+1] for i in range(n-1)]), dtype=tf.int32)
+    selb2 = tf.constant(np.array([[1, i] for i in range(n-1)]), dtype=tf.int32)
+    sela3 = tf.constant(np.array([[0, i-1] for i in range(1,n)]), dtype=tf.int32)
+    selb3 = tf.constant(np.array([[1, i] for i in range(1,n)]), dtype=tf.int32)
 
-    roda_xs = helper.create_string(np.array([0,0,-2.5]), np.array([0,0,2.5]), n)
-    rodb_xs = helper.create_string(np.array([1,0.01,-2.5]), np.array([1,0.01,2.5]), n)
-    rods_xs = np.array([rodb_xs, roda_xs]) # B First
+    inputdict={
+            crod.xs:cpos0,
+            nrod.xs:cpos1,
+            srod.xs:cpos1,
+            }
 
-    complete = TFDistanceFilter(h, xs, thresh)
-
-    stack0 = -1 * tf.ones(shape=[1,4], dtype=tf.int64)
+    with tf.Session() as sess:
+        sess.run(tf.global_variables_initializer())
+        print(sess.run(TFRodCCD(crod, nrod, srod, sela, selb), feed_dict=inputdict))
+        print(sess.run(TFRodCCD(crod, nrod, srod, sela2, selb3), feed_dict=inputdict))
+        print(sess.run(TFRodCCD(crod, nrod, srod, sela3, selb3), feed_dict=inputdict))
 
 def run():
     run_test0()
@@ -178,4 +204,4 @@ def run():
     run_test2()
 
 if __name__ == '__main__':
-    run()
+    run_test2()

@@ -167,6 +167,10 @@ def TFRodXDotSel(xdots, Sel):
     return (gxdots_i_1 + gxdots_i) / 2.0
 
 def TFConvexityByList(tensormat):
+    '''
+    tensormat: 8x6 array of tensors, check TFRodCCDExtended for details
+               Each 1x6 array checks one face for ALL PAIRS
+    '''
     faceconvexity = []
     # print(tensormat[0][0].get_shape())
     # print('dim {}'.format(dim))

@@ -322,7 +322,7 @@ def run_test6():
     '''
     Test 6: Twisting strings
     '''
-    n = 20
+    n = 60
     h = 1.0/1024.0
     rho = 1.0
 
@@ -349,19 +349,19 @@ def run_test6():
             )
     icond.alpha = 0.05
     icond.beta = 0.05
-    icond.constraint_tolerance = 1 # low-stiffness rods
+    icond.constraint_tolerance = 5 # low-stiffness rods
     icond.anchor_stiffness = 1e3 # but we need maintain the anchor constrants
     icond.t = 0.0
-    icond.ccd_threshold = 20.0
+    icond.ccd_threshold = 5.0
     def DualRotator(h, icond):
         #icond.sparse_anchor_values[2, :] = np.array([math.cos(icond.t), math.sin(icond.t), 5.0], dtype=np.float32)
         icond.sparse_anchor_values = np.array([
                 [math.cos(icond.t), math.sin(icond.t)+0.01, -2.5 + icond.t * 0.005],
                 [1, 0.01, 2.5],
                 # [math.cos(-icond.t), math.sin(-icond.t)+0.01, 2.5],
-                # [0,0,-2.5 + delta],
+                [0,0,-2.5 + delta],
                 [0,0,2.5 + delta],
-                ])
+                ], dtype=np.float32)
         # print([math.cos(icond.t), math.sin(icond.t), 5.0])
         # print(icond.sparse_anchor_values)
         # print(icond.t)
@@ -370,17 +370,61 @@ def run_test6():
     icond.sparse_anchor_indices = np.array([
             [0, 0],
             [0, n],
-            # [1, 0],
+            [1, 0],
             [1, n],
         ], dtype=np.int32)
     icond.sparse_anchor_values = np.array([
             rods_xs[0,0,:],
             rods_xs[0,-1,:],
-            # rods_xs[1,0,:],
+            rods_xs[1,0,:],
             rods_xs[1,-1,:],
-        ], dtype=np.int32)
-    icond.g = 9.8
+        ], dtype=np.float32)
+    # icond.g = 9.8
     run_with_bc(n, h, rho, icond, '/tmp/tfccd6', icond_updater=DualRotator)
+
+def run_test7():
+    '''
+    Test 7: Falling string
+    '''
+    n = 20
+    h = 1.0/1024.0
+    rho = 1.0
+
+    delta = 0.2
+    roda_xs = helper.create_string(np.array([-5,0,0]), np.array([5,0,0]), n)
+    rodb_xs = helper.create_string(np.array([delta,-5+delta,5.1]), np.array([delta, 5+delta, 5.1]), n)
+    rods_xs = np.array([roda_xs, rodb_xs])
+    # print(rods_xs)
+    roda_thetas = np.zeros(shape=[n], dtype=np.float32)
+    rodb_thetas = np.zeros(shape=[n], dtype=np.float32)
+    rods_thetas = np.array([roda_thetas, rodb_thetas])
+    roda_xdots = np.zeros(shape=[n+1,3], dtype=np.float32)
+    rodb_xdots = np.zeros(shape=[n+1,3], dtype=np.float32)
+    rods_xdots = np.array([roda_xdots, rodb_xdots])
+    initd1 = np.array([
+        [0,1,0],
+        [1,0,0],
+    ])
+    icond = helper.create_BCRodS(xs=rods_xs,
+            xdots=rods_xdots,
+            thetas=rods_thetas,
+            omegas=rods_thetas,
+            initd1=initd1
+            )
+    icond.alpha = 0.05
+    icond.beta = 0.05
+    icond.t = 0.0
+    icond.ccd_threshold = 50.0
+    icond.sparse_anchor_indices = np.array([
+            [0, 0],
+            [0, n],
+        ], dtype=np.int32)
+    icond.sparse_anchor_values = np.array([
+            rods_xs[0,0,:],
+            rods_xs[0,-1,:],
+        ], dtype=np.float32)
+    icond.g = 9.8
+    run_with_bc(n, h, rho, icond, '/tmp/tfccd7')
 
 def run():
     run_test0()
@@ -389,6 +433,8 @@ def run():
     run_test3()
     run_test4()
     run_test5()
+    run_test6()
+    run_test7()
 
 if __name__ == '__main__':
     run_test6()

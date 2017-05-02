@@ -166,24 +166,35 @@ def TFRodXDotSel(xdots, Sel):
     gxdots_i = tf.gather_nd(xdots_i, Sel)
     return (gxdots_i_1 + gxdots_i) / 2.0
 
+def TFSignedVolumes(xs, SelA, SelB):
+    gaxs_i_1, gaxs_i = TFRodXSel(xs, SelA)
+    gbxs_i_1, gbxs_i = TFRodXSel(xs, SelB)
+    avec = gaxs_i_1 - gbxs_i_1
+    bvec = gaxs_i - gbxs_i_1
+    cvec = gbxs_i - gbxs_i_1
+    return _dot(avec, tf.cross(bvec, cvec))
+
 def TFConvexityByList(tensormat):
     '''
     tensormat: 8x6 array of tensors, check TFRodCCDExtended for details
                Each 1x6 array checks one face for ALL PAIRS
     '''
     faceconvexity = []
+    accumdots = [] # FIXME: This is for debug
     # print(tensormat[0][0].get_shape())
     # print('dim {}'.format(dim))
     for i in range(len(tensormat)):
         tensorlist = tensormat[i]
         axes = tf.cross(tensorlist[1] - tensorlist[0], tensorlist[2] - tensorlist[0])
+        dots = []
         dotsigns = []
         for j in range(3, 6):
             delta = tensorlist[j] - tensorlist[0]
-            dots = _dot(delta, axes)
+            dot = _dot(delta, axes)
             #dots = muls
             # dots.set_shape([None])
-            signs = tf.sign(dots)
+            signs = tf.sign(dot)
+            dots.append(dot)
             dotsigns.append(signs)
             '''
             print('delta shape {}'.format(delta.get_shape()))
@@ -194,15 +205,22 @@ def TFConvexityByList(tensormat):
         # print('dotsigns[0] shape: {}'.format(dotsigns[0].get_shape()))
         faceconvexity.append(tf.equal(dotsigns[0], dotsigns[1]))
         faceconvexity.append(tf.equal(dotsigns[0], dotsigns[2]))
+        accumdots.append(dots)
     # return faceconvexity
     convexity = faceconvexity[0]
     # print('faceconvexity[0] shape: {}'.format(faceconvexity[0].get_shape()))
     for i in range(1, len(faceconvexity)):
         convexity = tf.logical_and(convexity, faceconvexity[i])
     # convexity.set_shape([None])
+    return convexity, faceconvexity, accumdots # FIXME: This is for debug
     return convexity
 
-def TFRodCCDExtended(crod, nrod, srod, ASelS, BSelS):
+def TFRodCCDExtended_signed_volume_based(crod, nrod, srod, ASelS, BSelS):
+    cvolumes = TFSignedVolumes(crod.xs, ASelS, BSelS)
+    nvolumes = TFSignedVolumes(nrod.xs, ASelS, BSelS)
+    return tf.less(cvolumes * nvolumes, tf.constant(0.0))
+
+def TFRodCCDExtended_convexity_based(crod, nrod, srod, ASelS, BSelS):
 
     '''
     Continus Collision Detection between Rod A and Rod B
@@ -232,8 +250,14 @@ def TFRodCCDExtended(crod, nrod, srod, ASelS, BSelS):
             [spoles, gnxs_k_1, gcxs_k_1, gcxs_k, gnxs_k, npoles]
             ]
     # return [verts[0]]
-    convexity = TFConvexityByList(verts)
-    return convexity, gcxs_k_1, gcxs_k, gnxs_k_1, gnxs_k
+    convexity, faceconvexity, accumdots = TFConvexityByList(verts)
+    srod.faceconvexity = faceconvexity # FIXME: This is for debug
+    srod.accumdots = accumdots # FIXME: This is for debug
+    return convexity
+
+def TFRodCCDExtended(crod, nrod, srod, ASelS, BSelS):
+    return TFRodCCDExtended_signed_volume_based(crod, nrod, srod, ASelS, BSelS)
+    #return TFRodCCDExtended_convexity_based(crod, nrod, srod, ASelS, BSelS)
 
 def TFRodCCD(crod, nrod, srod, ASelS, BSelS):
     a_list = TFRodCCDExtended(crod, nrod, srod, ASelS, BSelS)
@@ -245,7 +269,9 @@ def ConvexityFilter(SelS_in, convexity):
 def TFRodCollisionImpulse(h, crod, nrod, srod, ASelS_in, BSelS_in, convexity = None):
     gcxs_k = None
     if convexity is None:
-        convexity, _, _, _, _ = TFRodCCDExtended(crod, nrod, srod, ASelS_in, BSelS_in)
+        convexity = TFRodCCDExtended(crod, nrod, srod, ASelS_in, BSelS_in)
+        # convexity2 = TFRodCCDExtended(crod, nrod, srod, BSelS_in, ASelS_in)
+        # convexity = tf.logical_or(convexity1, convexity2)
     ASelS = ConvexityFilter(ASelS_in, convexity)
     BSelS = ConvexityFilter(BSelS_in, convexity)
 
@@ -270,7 +296,7 @@ def TFRodCollisionImpulse(h, crod, nrod, srod, ASelS_in, BSelS_in, convexity = N
     srod.convexity = convexity
     return 0.5 * h * gnormals * gsegmass, ASelS, BSelS
 
-def TFApplyImpulse(h, rods, ASelS, BSelS, impulse):
+def TFApplyImpulse(h, rods, ASelS, BSelS, impulse, factor):
     ASelX = ASelS
     BSelX = BSelS
     ASelX_p1 = ASelS + tf.constant([0,1])
@@ -280,7 +306,7 @@ def TFApplyImpulse(h, rods, ASelS, BSelS, impulse):
     gAvertmass_p1 = _paddim(tf.gather_nd(rods.fullrestvl, ASelX_p1))
     gBvertmass = _paddim(tf.gather_nd(rods.fullrestvl, BSelX))
     gBvertmass_p1 = _paddim(tf.gather_nd(rods.fullrestvl, BSelX_p1))
-    factor = 2.0
+    # factor = 2.0
     impulse_to_A = factor * impulse / gAvertmass
     impulse_to_A_p1 = factor * impulse / gAvertmass_p1
     impulse_to_B = -factor * impulse / gBvertmass
@@ -418,6 +444,7 @@ class ElasticRodS:
     obstacle_impulse_op = None
 
     ccd_threshold = None
+    ccd_factor = None
 
     def clone_args_from(self, other):
         if other is None:
@@ -566,7 +593,9 @@ class ElasticRodS:
         h = ccd_h
         inputdict = helper.create_dict([irod], [icond])
         sess.run(self.init_op, feed_dict=inputdict, options=options, run_metadata=run_metadata)
-        while True:
+        CH = 1.0
+        for C in range(100):
+        #while True:
             #init_xs = sess.run(self.init_xs, feed_dict=inputdict)
                 #    orod.thetas, orod.omegas], feed_dict=inputdict)
             leaving_iter = 0
@@ -585,18 +614,19 @@ class ElasticRodS:
                     E = sess.run(self.loss, feed_dict=inputdict)
                     print('loss: {}'.format(E))
                 '''
-            print('Leaving at Iter {} with Energy {} tolerance {}'.format(leaving_iter, E, self.constraint_tolerance))
+            # print('Leaving at Iter {} with Energy {} tolerance {}'.format(leaving_iter, E, self.constraint_tolerance))
             if self.obstacle_impulse_op is not None:
                 obstacle_impulse = sess.run(self.obstacle_impulse_op, feed_dict=inputdict, options=options, run_metadata=run_metadata)
             # print "obstacle impulse: ", obstacle_impulse
             if h is not None:
                 ccddict = helper.create_dict([irod], [icond])
-                ccddict.update({self.ccd_threshold: ccd_broadthresh})
+                ccddict.update({self.ccd_threshold: ccd_broadthresh, self.ccd_factor:CH})
                 leaving = self.DetectAndApplyImpulse(sess, h, ccddict)
+                # CH += 0.1
                 if leaving:
                     break
-                while not self.DetectAndApplyImpulse(sess, h, ccddict):
-                    pass
+                # while not self.DetectAndApplyImpulse(sess, h, ccddict):
+                #    pass
             else:
                 break
         # print "loss:", E
@@ -700,10 +730,12 @@ class ElasticRodS:
             self.sela = tf.slice(distance_pairs, [0, 0], [-1, 2])
             self.selb = tf.slice(distance_pairs, [0, 2], [-1, 2])
         self.impulse_with_sels = TFRodCollisionImpulse(h, irod, self, self, self.sela, self.selb)
+        self.ccd_factor = tf.placeholder(dtype=tf.float32)
         self.appled_xs = TFApplyImpulse(h, self,\
                 self.impulse_with_sels[1],\
                 self.impulse_with_sels[2],\
-                self.impulse_with_sels[0]
+                self.impulse_with_sels[0],
+                self.ccd_factor
                 )
         self.apply_impulse_op = tf.assign(self.xs, self.appled_xs)
         # print(self.apply_impulse_op)
@@ -714,7 +746,7 @@ class ElasticRodS:
         ops = [self.impulse_with_sels[1], self.impulse_with_sels[2], self.apply_impulse_op]
         sela_results, selb_results,_ = sess.run(ops, feed_dict=inputdict)
         # cvx = sess.run(self.convexity, feed_dict=inputdict)
-        print('detected collision {}'.format(np.concatenate([sela_results, selb_results], axis=1)))
+        # print('detected collision {}'.format(np.concatenate([sela_results, selb_results], axis=1)))
         # print('convexity list {}'.format(cvx))
         # print(sess.run(self.impulse_with_sels, feed_dict=inputdict))
         # print('xs after impulse {}'.format(sess.run(self.xs, feed_dict=inputdict)))

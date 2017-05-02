@@ -140,8 +140,10 @@ class Rod(object):
         # add subdivision modifier
         self.centerline.modifiers.new(name="%s.modifier" % self.name, type="SUBSURF")
         mod = self.centerline.modifiers[0]
-        mod.levels = 4
-        mod.render_levels = 4
+        mod.levels = 0
+        mod.render_levels = 0
+        # mod.levels = 4
+        # mod.render_levels = 4
         # add sphere indicator for vertices
         self.vertices = []
         for i in range(knots):

@@ -227,10 +227,57 @@ def run_test2():
         print(sess.run(dpairs, feed_dict=inputdict))
         print(sess.run(convex_sel, feed_dict=inputdict))
 
+def check_failure(frames, path):
+    fdata = []
+    for frame in frames:
+        mat=spio.loadmat('{}/{}.mat'.format(path, frame))
+        raw_shape = mat['cpos'].shape
+        cpos = mat['cpos'].reshape(raw_shape[1:])
+        fdata.append(cpos)
+    # print(cpos0)
+    # print(cpos1)
+    # cpos1[0,:,:] += np.array([0,0,-0.1])
+    xsshape = fdata[0].shape
+    print(xsshape)
+    crod = FakeRods()
+    nrod = FakeRods()
+    srod = FakeRods()
+    crod.xs = tf.placeholder(dtype=tf.float32, shape=xsshape)
+    nrod.xs = tf.placeholder(dtype=tf.float32, shape=xsshape)
+    srod.xs = tf.placeholder(dtype=tf.float32, shape=xsshape)
+
+    h = 1.0/1024.0
+    n = xsshape[1] - 1
+    dpairs = TFDistanceFilter(h, crod.GetMidPointsTF(), tf.constant(200.0))
+    sela_gcan = tf.slice(dpairs, [0, 0], [-1, 2])
+    selb_gcan = tf.slice(dpairs, [0, 2], [-1, 2])
+    convexity = TFRodCCDExtended(crod, nrod, srod, sela_gcan, selb_gcan)
+    collisions = ConvexityFilter(dpairs, convexity)
+
+    with tf.Session() as sess:
+        sess.run(tf.global_variables_initializer())
+        for f in range(len(frames)-1):
+            cpos0 = fdata[f]
+            cpos1 = fdata[f+1]
+            inputdict={
+                    crod.xs:cpos0,
+                    nrod.xs:cpos1,
+                    srod.xs:cpos1,
+                    }
+            print('frame {}, collision {}'.format(frames[f], sess.run(collisions, feed_dict=inputdict)))
+
+def run_test3():
+    check_failure([47,48,49,51,51], 'testdata_ccd7')
+
+def run_test4():
+    check_failure([59,60,61,62], 'testdata_ccd7_CH2')
+
 def run():
     run_test0()
     run_test1()
     run_test2()
+    run_test3()
 
 if __name__ == '__main__':
-    run_test2()
+    run_test3()
+    run_test4()

@@ -414,7 +414,7 @@ def run_test7():
     icond.alpha = 0.05
     icond.beta = 0.05
     icond.t = 0.0
-    icond.ccd_threshold = 50.0
+    icond.ccd_threshold = 250.0
     icond.sparse_anchor_indices = np.array([
             [0, 0],
             [0, n],
@@ -437,4 +437,4 @@ def run():
     run_test7()
 
 if __name__ == '__main__':
-    run_test6()
+    run_test7()

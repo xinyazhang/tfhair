@@ -600,7 +600,7 @@ class ElasticRodS:
                 #    orod.thetas, orod.omegas], feed_dict=inputdict)
             leaving_iter = 0
             E = 0.0
-            for i in range(100):
+            for i in range(1000):
                 # sess.run(self.train_op, feed_dict=inputdict)
                 E, _ = sess.run([self.loss, self.apply_grads_op], feed_dict=inputdict, options=options, run_metadata=run_metadata)
                 leaving_iter = i
@@ -625,8 +625,11 @@ class ElasticRodS:
                 # CH += 0.1
                 if leaving:
                     break
-                # while not self.DetectAndApplyImpulse(sess, h, ccddict):
-                #    pass
+                AdaptiveCH = CH
+                while not self.DetectAndApplyImpulse(sess, h, ccddict):
+                    AdaptiveCH += 1e-2
+                    ccddict.update({self.ccd_factor:AdaptiveCH})
+                    pass
             else:
                 break
         # print "loss:", E

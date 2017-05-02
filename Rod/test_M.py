@@ -311,8 +311,8 @@ def run_test8():
     h = 1.0/1024.0
     rho = 1.0
 
-    xs = np.array([[i,-2,0] for i in iterator])
-    xdots = np.array([[0,100,0]] * (n+1))
+    xs = np.array([[i*0.5,-2,0] for i in iterator])
+    xdots = np.array([[0,0,0]] + [[0,100,0]] * (n-1) + [[0,0,0]])
     thetas = np.zeros(shape=[n], dtype=np.float32)
     omegas = np.zeros(shape=[n], dtype=np.float32)
     icond = helper.create_BCRod(xs=xs,
@@ -326,35 +326,39 @@ def run_test8():
 
     run_with_bc(n, h, rho, icond, '/tmp/tftest8')
 
-# def FixedAnchor(h, icond):
-#     icond.anchors = np.array([0.0, 0.0, 1.0])
-#
-# def run_test9():
-#     '''
-#     Test 9: collision with anchors on unit sphere
-#     '''
-#     iterator = xrange(1,11)
-#     n = len(list(iterator)) - 1
-#     h = 1.0/1024.0
-#     rho = 1.0
-#
-#     xs = np.array([[0,0,i] for i in iterator])
-#     xdots = np.array([[0,0,0]] + [[0,100,0]] * n)
-#     thetas = np.zeros(shape=[n], dtype=np.float32)
-#     omegas = np.zeros(shape=[n], dtype=np.float32)
-#     icond = helper.create_BCRod(xs=xs,
-#             xdots=xdots,
-#             thetas=thetas,
-#             omegas=omegas,
-#             initd1=np.array([0,1,0]))
-#     icond.alpha = 0.01
-#     icond.beta = 0.01
-#
-#     icond.anchors = np.array([0,0,1])
-#     icond.body_collision = CollisionCheck
-#     icond.g = 9.8
-#
-#     run_with_bc(n, h, rho, icond, '/tmp/tftest9', icond_updater=FixedAnchor)
+def FixedAnchor(h, icond):
+    icond.anchors = np.array([0.0, 0.0, 1.0])
+
+def run_test9():
+    '''
+    Test 9: collision with anchors on unit sphere
+    '''
+    centers = [ np.array([0.0, 0.0, 0.0]) ]
+    radii = [ np.array([1.0]) ]
+    obstacle = SphericalBodyS(centers, radii)
+
+    iterator = xrange(1,11)
+    n = len(list(iterator)) - 1
+    h = 1.0/1024.0
+    rho = 1.0
+
+    xs = np.array([[0,0,i] for i in iterator])
+    xdots = np.array([[0,0,0]] + [[0,100,0]] * n)
+    thetas = np.zeros(shape=[n], dtype=np.float32)
+    omegas = np.zeros(shape=[n], dtype=np.float32)
+    icond = helper.create_BCRod(xs=xs,
+            xdots=xdots,
+            thetas=thetas,
+            omegas=omegas,
+            initd1=np.array([0,1,0]))
+    icond.alpha = 0.01
+    icond.beta = 0.01
+    icond.obstacles = obstacle
+
+    icond.anchors = np.array([0,0,1])
+    icond.g = 9.8
+
+    run_with_bc(n, h, rho, icond, '/tmp/tftest9', icond_updater=FixedAnchor)
 
 def run():
     run_test0()
@@ -366,9 +370,9 @@ def run():
     run_test6()
     run_test7()
     run_test8()
-    # run_test9()
+    run_test9()
 
 if __name__ == '__main__':
     # run()
     run_test8()
-    # run_test9()
+    run_test9()

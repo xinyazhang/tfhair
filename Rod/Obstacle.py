@@ -28,6 +28,7 @@ class SphericalBodyS(object):
     Center, and radius, of course could be tensors, placeholders, etc
     """
     CoR = 0.1
+    margin = 0.1       # spacing for collision
 
     def __init__(self, centers, radii):
         super(SphericalBodyS, self).__init__()
@@ -42,18 +43,20 @@ class SphericalBodyS(object):
         return impulse_ops
 
     def _DetectAndApplyImpulseEachOp(self, h, center, radius, rod):
-        midpoints = rod.GetMidPointsTF()
+        # pts = rod.GetMidPointsTF()
+        pts = rod.xs
         # check if already collided
-        dvec = midpoints - center
+        dvec = center -pts
         dist2 = tf.square(tf.norm(dvec, axis=-1))
         diff2 = dist2 - radius * radius
         # check if approaching
-        xdots_i_1, xdots_i = _diffslices(rod.xdots, dim=-2)
-        qdots = (xdots_i_1 + xdots_i) / 2.0
+        # xdots_i_1, xdots_i = _diffslices(rod.xdots, dim=-2)
+        # qdots = (xdots_i_1 + xdots_i) / 2.0
+        qdots = rod.xdots
         relqdots = qdots    # FIXME: for now assume that obstacles are stationary
         approaching = tf.reduce_sum(relqdots * dvec, -1)
         # select both collided and approaching segments
-        sel = tf.where(tf.logical_and(diff2 < 0, approaching > 0))
+        sel = tf.where(tf.logical_and(diff2 < self.margin, approaching > 0))
         relqdotsSel = tf.gather_nd(relqdots, sel)
         # compute impulse with coefficient of restitution
         factor = -(1 + self.CoR)

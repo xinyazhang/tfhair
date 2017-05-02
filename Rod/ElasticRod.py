@@ -582,7 +582,8 @@ class ElasticRodS:
                     print('loss: {}'.format(E))
                 '''
             print('Leaving at Iter {} with Energy {} tolerance {}'.format(leaving_iter, E, self.constraint_tolerance))
-            obstacle_impulse = sess.run(self.obstacle_impulse_op, feed_dict=inputdict, options=options, run_metadata=run_metadata)
+            if self.obstacle_impulse_op is not None:
+                obstacle_impulse = sess.run(self.obstacle_impulse_op, feed_dict=inputdict, options=options, run_metadata=run_metadata)
             # print "obstacle impulse: ", obstacle_impulse
             if h is not None:
                 ccddict = helper.create_dict([irod], [icond])

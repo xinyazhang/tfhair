@@ -124,8 +124,11 @@ class RodScene(Scene):
         refd1s = _expand_to(data["refd1s"], 4)
         refd2s = _expand_to(data["refd2s"], 4)
         n_batch, n_rods, n_centerpoints, _ = xs.shape
-        spheres = data["spheres"]
         radius = data.get("radius", 0.02)
+
+        spheres = None
+        if "spheres" in data:
+            spheres = data["spheres"]
 
         # init rods
         if self.rods is None:

@@ -276,10 +276,11 @@ def TFApplyImpulse(h, rods, ASelS, BSelS, impulse):
     gAvertmass_p1 = _paddim(tf.gather_nd(rods.fullrestvl, ASelX_p1))
     gBvertmass = _paddim(tf.gather_nd(rods.fullrestvl, BSelX))
     gBvertmass_p1 = _paddim(tf.gather_nd(rods.fullrestvl, BSelX_p1))
-    impulse_to_A = impulse / gAvertmass
-    impulse_to_A_p1 = impulse / gAvertmass_p1
-    impulse_to_B = -impulse / gBvertmass
-    impulse_to_B_p1 = -impulse / gBvertmass_p1
+    factor = 2.0
+    impulse_to_A = factor * impulse / gAvertmass
+    impulse_to_A_p1 = factor * impulse / gAvertmass_p1
+    impulse_to_B = -factor * impulse / gBvertmass
+    impulse_to_B_p1 = -factor * impulse / gBvertmass_p1
     updates = tf.concat([impulse_to_A, impulse_to_A_p1, impulse_to_B, impulse_to_B_p1], axis=0)
     return tf.scatter_nd_add(rods.xs, indices, updates)
     # nrods.xdots = tf.scatter_add(nrods.xdots, ASelS, impulse)
@@ -437,6 +438,8 @@ class ElasticRodS:
     sparse_anchor_indices = None # 2D tensor, [None] x 2
     sparse_anchor_values = None # 2D tensor, [None] x 3
     body_collision = None
+    sela = None
+    selb = None
 
     '''
     Convention of additional tensors
@@ -566,9 +569,12 @@ class ElasticRodS:
         while True:
             #init_xs = sess.run(self.init_xs, feed_dict=inputdict)
                 #    orod.thetas, orod.omegas], feed_dict=inputdict)
+            leaving_iter = 0
+            E = 0.0
             for i in range(100):
                 # sess.run(self.train_op, feed_dict=inputdict)
                 E, _ = sess.run([self.loss, self.apply_grads_op], feed_dict=inputdict, options=options, run_metadata=run_metadata)
+                leaving_iter = i
                 if i % 1 == 0:
                     # print('loss (iter:{}): {}'.format(i, E))
                     if math.fabs(E) < self.constraint_tolerance:
@@ -579,12 +585,15 @@ class ElasticRodS:
                     E = sess.run(self.loss, feed_dict=inputdict)
                     print('loss: {}'.format(E))
                 '''
+            print('Leaving at Iter {} with Energy {} tolerance {}'.format(leaving_iter, E, self.constraint_tolerance))
             if h is not None:
                 ccddict = helper.create_dict([irod], [icond])
                 ccddict.update({self.ccd_threshold: ccd_broadthresh})
                 leaving = self.DetectAndApplyImpulse(sess, h, ccddict)
                 if leaving:
                     break
+                while not self.DetectAndApplyImpulse(sess, h, ccddict):
+                    pass
             else:
                 break
         # print "loss:", E
@@ -682,10 +691,11 @@ class ElasticRodS:
             self.ccd_threshold = tf.placeholder(dtype=tf.float32)
         else:
             self.ccd_threshold = thresholds
-        distance_pairs = TFDistanceFilter(h, midpoints, self.ccd_threshold)
-        distance_pairs = tf.cast(distance_pairs, tf.int32)
-        self.sela = tf.slice(distance_pairs, [0, 0], [-1, 2])
-        self.selb = tf.slice(distance_pairs, [0, 2], [-1, 2])
+        if self.sela is None:
+            distance_pairs = TFDistanceFilter(h, midpoints, self.ccd_threshold)
+            distance_pairs = tf.cast(distance_pairs, tf.int32)
+            self.sela = tf.slice(distance_pairs, [0, 0], [-1, 2])
+            self.selb = tf.slice(distance_pairs, [0, 2], [-1, 2])
         self.impulse_with_sels = TFRodCollisionImpulse(h, irod, self, self, self.sela, self.selb)
         self.appled_xs = TFApplyImpulse(h, self,\
                 self.impulse_with_sels[1],\
@@ -700,8 +710,8 @@ class ElasticRodS:
         # print('xs before impulse {}'.format(sess.run(self.xs, feed_dict=inputdict)))
         ops = [self.impulse_with_sels[1], self.impulse_with_sels[2], self.apply_impulse_op]
         sela_results, selb_results,_ = sess.run(ops, feed_dict=inputdict)
-        cvx = sess.run(self.convexity, feed_dict=inputdict)
-        # print('detected collision {}'.format(np.concatenate([sela_results, selb_results], axis=1)))
+        # cvx = sess.run(self.convexity, feed_dict=inputdict)
+        print('detected collision {}'.format(np.concatenate([sela_results, selb_results], axis=1)))
         # print('convexity list {}'.format(cvx))
         # print(sess.run(self.impulse_with_sels, feed_dict=inputdict))
         # print('xs after impulse {}'.format(sess.run(self.xs, feed_dict=inputdict)))

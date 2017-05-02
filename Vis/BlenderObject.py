@@ -120,6 +120,15 @@ class Rod(object):
         mod = self.centerline.modifiers[0]
         mod.levels = 4
         mod.render_levels = 4
+        # add sphere indicator for vertices
+        self.vertices = []
+        for i in range(knots):
+            bpy.ops.mesh.primitive_uv_sphere_add(segments=12, ring_count=6, size=self.radius*2,enter_editmode=False, location=(0, 0, 0))
+            ob = bpy.context.object
+            ob.name = "rod-%s-sphere.%s" % (self.name, i)
+            me = ob.data
+            me.name = "rod-%s-sphere.%s.mesh" % (self.name, i)
+            self.vertices.append(ob)
         # add material_frame frames
         self.material_frames = [ Rod.axis.CreateInstance(i) for i in range(knots-1) ]
         n_dis_step = 1 if knots < 10 else int(knots / 10)
@@ -139,6 +148,7 @@ class Rod(object):
         mat[0][0:3] = e1
         mat[1][0:3] = e2
         mat[2][0:3] = e3
+        mat.transpose()
         mat.invert()
         return mat.to_euler()
 
@@ -183,11 +193,13 @@ class Rod(object):
             pt.co = (x, y, z, 1.0)
             pt.radius = self.radius
             pt.tilt = thetas[i]
+            self.vertices[i].location = (x, y, z)
 
         # add keyframes for control points
-        for point in self.polyline.points:
+        for i, point in enumerate(self.polyline.points):
             point.keyframe_insert('co', frame=keyframe)
             point.keyframe_insert('tilt', frame=keyframe)
+            self.vertices[i].keyframe_insert('location', frame=keyframe)
 
         # update material_frame frame
         for i in range(len(xs)-1):

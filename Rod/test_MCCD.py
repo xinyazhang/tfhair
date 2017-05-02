@@ -19,22 +19,22 @@ def run_with_bc(n, h, rho, icond, path, icond_updater=None):
         icond.ccd_threshold = 30.0
     tf.reset_default_graph()
     irod = helper.create_TFRodS(2, n)
-    irod.alpha = 0.01
-    irod.beta = 0.01
+    irod.clone_args_from(icond)
     if icond.sparse_anchor_indices is not None:
         irod.sparse_anchor_indices = tf.placeholder(tf.int32, shape=[None, 2])
         irod.sparse_anchor_values = tf.placeholder(tf.float32, shape=[None, 3])
 
     orod = irod.CalcNextRod(h)
     rrod = orod.CalcPenaltyRelaxationTF(h)
+    ''' Hack: This check collision b/w Rod 0 Seg # and Rod 1 Seg # '''
+    # rrod.sela = tf.constant(np.array([[0, i] for i in range(n)]), dtype=tf.int32)
+    # rrod.selb = tf.constant(np.array([[1, i] for i in range(n)]), dtype=tf.int32)
     rrod = rrod.CreateCCDNode(irod, h)
 
     # TODO: Calulate SelS in ElasticRodS directly.
-    ''' This check collision b/w Rod 0 Seg # and Rod 1 Seg # '''
     # sela_data = np.array([[0, i] for i in range(n)])
     # selb_data = np.array([[1, i] for i in range(n)])
-
-    # pfe = TFGetEConstaint(irod)
+# pfe = TFGetEConstaint(irod)
     saver = helper.RodSaver(path)
     with tf.Session() as sess:
         sess.run(tf.global_variables_initializer())
@@ -60,7 +60,7 @@ def run_with_bc(n, h, rho, icond, path, icond_updater=None):
                 # print("xdots {}".format(xdots))
                 # print("thetas {}".format(icond.thetas))
                 icond = rrod.Relax(sess, irod, icond, ccd_h=h, ccd_broadthresh=icond.ccd_threshold)
-                print('xs {}'.format(icond.xs))
+                # print('xs {}'.format(icond.xs))
                 # print("refd1s {}".format(icond.refd1s))
                 # print("refd2s {}".format(icond.refd2s))
                 progress.update(frame+1)
@@ -247,8 +247,8 @@ def run_test4():
     h = 1.0/1024.0
     rho = 1.0
 
-    roda_xs = helper.create_string(np.array([0,0,-2.5]), np.array([0,0,2.5]), n)
-    rodb_xs = helper.create_string(np.array([1,-2.5,0.01]), np.array([1,2.5,0.01]), n)
+    roda_xs = helper.create_string(np.array([0,0.0,-2.25]), np.array([0,0.0,2.75]), n)
+    rodb_xs = helper.create_string(np.array([1,-2.25,0.0]), np.array([1,2.75,0.0]), n)
     rods_xs = np.array([rodb_xs, roda_xs]) # B First
     # print(rods_xs)
     roda_thetas = np.zeros(shape=[n], dtype=np.float32)
@@ -257,11 +257,11 @@ def run_test4():
     roda_xdots = np.zeros(shape=[n+1,3], dtype=np.float32)
     rodb_xdots = np.zeros(shape=[n+1,3], dtype=np.float32)
     rods_xdots = np.array([roda_xdots, rodb_xdots])
-    rods_xdots[0,:,0] = -5.0
+    rods_xdots[0,:,0] = -10.0
     print(rods_xdots)
     initd1 = np.array([
-        [0,1,0],
-        [0,1,0],
+        [1,0,0],
+        [-1,0,0],
     ])
     icond = helper.create_BCRodS(xs=rods_xs,
             xdots=rods_xdots,
@@ -317,19 +317,6 @@ def run_test5():
             )
     run_with_bc(n, h, rho, icond, '/tmp/tfccd5')
 
-def DualRotator(h, icond):
-    #icond.sparse_anchor_values[2, :] = np.array([math.cos(icond.t), math.sin(icond.t), 5.0], dtype=np.float32)
-    icond.sparse_anchor_values = np.array([
-            [math.cos(icond.t), math.sin(icond.t)+0.01, 5.0],
-            [math.cos(-icond.t), math.sin(-icond.t)+0.01, 0.0],
-            [0,0,5],
-            [0,0,0],
-            ])
-    # print([math.cos(icond.t), math.sin(icond.t), 5.0])
-    # print(icond.sparse_anchor_values)
-    # print(icond.t)
-    #icond.sparse_anchor_values[3] = np.array([math.cos(-icond.t), math.sin(-icond.t), 0.0 + icond.t])
-    icond.t += h * 32
 
 def run_test6():
     '''
@@ -339,7 +326,8 @@ def run_test6():
     h = 1.0/1024.0
     rho = 1.0
 
-    roda_xs = helper.create_string(np.array([0,0,-2.5]), np.array([0,0,2.5]), n)
+    delta = (1.0/n)/2.0
+    roda_xs = helper.create_string(np.array([0,0,-2.5 + delta]), np.array([0,0,2.5 + delta]), n)
     rodb_xs = helper.create_string(np.array([1,0.01,-2.5]), np.array([1,0.01,2.5]), n)
     rods_xs = np.array([rodb_xs, roda_xs]) # B First
     # print(rods_xs)
@@ -365,18 +353,33 @@ def run_test6():
     icond.anchor_stiffness = 1e3 # but we need maintain the anchor constrants
     icond.t = 0.0
     icond.ccd_threshold = 20.0
+    def DualRotator(h, icond):
+        #icond.sparse_anchor_values[2, :] = np.array([math.cos(icond.t), math.sin(icond.t), 5.0], dtype=np.float32)
+        icond.sparse_anchor_values = np.array([
+                [math.cos(icond.t), math.sin(icond.t)+0.01, -2.5 + icond.t * 0.005],
+                [1, 0.01, 2.5],
+                # [math.cos(-icond.t), math.sin(-icond.t)+0.01, 2.5],
+                # [0,0,-2.5 + delta],
+                [0,0,2.5 + delta],
+                ])
+        # print([math.cos(icond.t), math.sin(icond.t), 5.0])
+        # print(icond.sparse_anchor_values)
+        # print(icond.t)
+        #icond.sparse_anchor_values[3] = np.array([math.cos(-icond.t), math.sin(-icond.t), 0.0 + icond.t])
+        icond.t += h * 64
     icond.sparse_anchor_indices = np.array([
             [0, 0],
             [0, n],
-            [1, 0],
+            # [1, 0],
             [1, n],
         ], dtype=np.int32)
     icond.sparse_anchor_values = np.array([
-            [1, 0,-2.5],
-            [1, 0, 2.5],
-            [0,0,-2.5],
-            [0,0, 2.5],
+            rods_xs[0,0,:],
+            rods_xs[0,-1,:],
+            # rods_xs[1,0,:],
+            rods_xs[1,-1,:],
         ], dtype=np.int32)
+    icond.g = 9.8
     run_with_bc(n, h, rho, icond, '/tmp/tfccd6', icond_updater=DualRotator)
 
 def run():
@@ -388,4 +391,4 @@ def run():
     run_test5()
 
 if __name__ == '__main__':
-    run_test4()
+    run_test6()

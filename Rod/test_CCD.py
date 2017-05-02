@@ -4,6 +4,7 @@ Test for Motions
 '''
 
 import numpy as np
+import scipy.io as spio
 from ElasticRod import *
 import RodHelper as helper
 import tensorflow as tf
@@ -154,7 +155,8 @@ def run_test2():
     '''
     Test 2: parallel rods
     '''
-    return # FIXME: test parallel rods
+    f154 = spio.loadmat('testdata_ccd6/154.mat')
+    f155 = spio.loadmat('testdata_ccd6/155.mat')
     h = 1.0/1024.0
     n = 20
     thresh_value = 50.0

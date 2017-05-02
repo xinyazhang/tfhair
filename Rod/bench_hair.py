@@ -6,6 +6,7 @@ Test for Hair Motions
 import sys
 import numpy as np
 from ElasticRod import *
+from Obstacle import *
 import RodHelper as helper
 import tensorflow as tf
 import scipy.io
@@ -14,7 +15,7 @@ from math import pi
 import progressbar
 from tensorflow.python.client import timeline
 
-def run_with_bc(n_rods, n_segs, h, rho, icond, anchors, path):
+def run_with_bc(n_rods, n_segs, h, rho, icond, anchors, path, obstacle=None):
     '''
     Run the simulation with given boundary conditions (icond)
     '''
@@ -27,6 +28,8 @@ def run_with_bc(n_rods, n_segs, h, rho, icond, anchors, path):
 
     orod = irod.CalcNextRod(h)
     rrod = orod.CalcPenaltyRelaxationTF(h)
+    if obstacle is not None:
+        rrod.obstacle_impulse_op = obstacle.DetectAndApplyImpulseOp(h, rrod)
 
     saver = helper.RodSaver(path)
     with tf.Session() as sess:
@@ -72,6 +75,10 @@ def HeadCollisionPotential(rod):
     return TKGetForbiddenSphere(center, radius, rod)
 
 def run_hair_bench(matfile):
+    centers = [ np.array([0.0, 0.0, 0.0]) ]
+    radii = [ np.array([1.0]) ]
+    obstacle = SphericalBodyS(centers, radii)
+
     mdict = {}
     scipy.io.loadmat(matfile, mdict)
 
@@ -87,17 +94,15 @@ def run_hair_bench(matfile):
             omegas=omegas,
             initd1=initd1
     )
-    icond.alpha = 0.001
-    icond.beta = 0.001
+    icond.alpha = 0.1
+    icond.beta = 0.1
     icond.g = 9.8
-    icond.body_collision = HeadCollisionPotential
-    icond.gamma = 10
 
     n_rods, n_segs = thetas.shape
     h = 1.0/1024.0
-    rho = 1.0
+    rho = 0.001
 
-    run_with_bc(n_rods, n_segs, h, rho, icond, anchors, '/tmp/tfhair')
+    run_with_bc(n_rods, n_segs, h, rho, icond, anchors, '/tmp/tfhair', obstacle=obstacle)
 
 if __name__ == "__main__":
     run_hair_bench(sys.argv[1])

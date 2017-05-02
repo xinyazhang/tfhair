@@ -28,7 +28,7 @@ class SphericalBodyS(object):
     Center, and radius, of course could be tensors, placeholders, etc
     """
     CoR = 0.1
-    margin = 0.1       # spacing for collision
+    margin = 0.0       # spacing for collision
 
     def __init__(self, centers, radii):
         super(SphericalBodyS, self).__init__()

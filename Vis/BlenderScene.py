@@ -185,6 +185,7 @@ class HairScene(Scene):
         world2local = obj.matrix_world.inverted()
         for i, h in enumerate(hairs):
             for j, hv in enumerate(h.hair_keys):
+                if j <= 2: continue
                 hv.co = world2local * mathutils.Vector(xs[0,i,j,:])
 
     def Dump(self, filename):
@@ -217,13 +218,22 @@ class HairScene(Scene):
             initds[i,:] = np.array(d3)
 
         # assign anchor points
-        anchors = np.zeros(shape=(self.scene.frame_end, 2, n_rods, 3), dtype=np.float32)
+        anchors = np.zeros(shape=(self.scene.frame_end, n_rods * 2, 3), dtype=np.float32)
         for frame, anchor in enumerate(anchors):
             print("Generate frame %d" % frame)
             bpy.context.scene.frame_set(frame)
             for i, h in enumerate(hairs):
-                anchor[0,i,:] = np.array(obj.matrix_world * h.hair_keys[0].co)
-                anchor[1,i,:] = np.array(obj.matrix_world * h.hair_keys[1].co)
+                anchor[i,:] = np.array(obj.matrix_world * h.hair_keys[0].co)
+
+        for frame, anchor in enumerate(anchors):
+            print("Generate frame %d" % frame)
+            bpy.context.scene.frame_set(frame)
+            for i, h in enumerate(hairs):
+                anchor[i + n_rods,:] = np.array(obj.matrix_world * h.hair_keys[1].co)
+
+        # create anchor indices
+        indices = np.array([(i, 0) for i in range(n_rods)] + [(i, 1) for i in range(n_rods)], dtype=np.int32)
+
         print("Done")
 
         filename = os.path.abspath(filename)
@@ -233,6 +243,7 @@ class HairScene(Scene):
             "theta"  : theta,
             "omega"  : omega,
             "initd"  : initds,
-            "anchor" : anchors
+            "anchor" : anchors,
+            "anchor_indices" : indices
         }
         scipy.io.savemat(filename, mdict, appendmat=True)

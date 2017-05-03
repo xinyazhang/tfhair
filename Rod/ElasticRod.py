@@ -663,7 +663,7 @@ class ElasticRodS:
             ndim = _ndim(rod.xs)
             start = list([0] * ndim)
             size = list([-1] * ndim)
-            size[-2] = 1
+            size[-2] = 2
             firstX = tf.unstack(tf.slice(rod.xs, start, size), axis=ndim - 2)[0]
             diff = firstX - rod.anchors
             total += tf.reduce_sum(_dot(diff, diff)) * rod.anchor_stiffness

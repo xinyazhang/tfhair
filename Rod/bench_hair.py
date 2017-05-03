@@ -19,12 +19,12 @@ def run_with_bc(n_rods, n_segs, h, rho, icond, anchors, path, obstacle=None):
     '''
     Run the simulation with given boundary conditions (icond)
     '''
-    icond.anchors = anchors[0]
     tf.reset_default_graph()
     irod = helper.create_TFRodS(n_rods, n_segs)
     irod.clone_args_from(icond)
-    if icond.anchors is not None:
-        irod.anchors = tf.placeholder(tf.float32, shape=icond.anchors.shape)
+
+    irod.sparse_anchor_indices = tf.placeholder(tf.int32, shape=[None, 2])
+    irod.sparse_anchor_values = tf.placeholder(tf.float32, shape=[None, 3])
 
     orod = irod.CalcNextRod(h)
     rrod = orod.CalcPenaltyRelaxationTF(h)
@@ -40,7 +40,7 @@ def run_with_bc(n_rods, n_segs, h, rho, icond, anchors, path, obstacle=None):
         # nframe = 10
         with progressbar.ProgressBar(max_value=nframe) as progress:
             for frame in range(1,nframe):
-                icond.anchors = anchors[frame-1]  # anchors update
+                icond.sparse_anchor_values = anchors[frame-1]  # anchors update
 
                 #inputdict = {irod.xs:xs, irod.restl:rl, irod.thetas:thetas, irod.xdots:xdots, irod:omegas:omegas}
                 inputdict = helper.create_dict([irod], [icond])
@@ -87,22 +87,26 @@ def run_hair_bench(matfile):
     thetas = mdict["theta"]
     omegas = mdict["omega"]
     initd1 = mdict["initd"]
-    anchors = mdict["anchor"]       # anchors records the anchor points of each frame
+    anchor_values = mdict["anchor"]
+    anchor_indices = mdict["anchor_indices"]
     icond = helper.create_BCRodS(xs=xs,
             xdots=xdots,
             thetas=thetas,
             omegas=omegas,
             initd1=initd1
     )
-    icond.alpha = 0.1
-    icond.beta = 0.1
+    icond.alpha = 1e-12
+    icond.beta = 1e-8
     icond.g = 9.8
 
     n_rods, n_segs = thetas.shape
     h = 1.0/1024.0
-    rho = 0.001
+    rho = 1e-3
 
-    run_with_bc(n_rods, n_segs, h, rho, icond, anchors, '/tmp/tfhair', obstacle=obstacle)
+    icond.sparse_anchor_indices = anchor_indices
+    icond.sparse_anchor_values = anchor_values[0]
+
+    run_with_bc(n_rods, n_segs, h, rho, icond, anchor_values, '/tmp/tfhair', obstacle=obstacle)
 
 if __name__ == "__main__":
     run_hair_bench(sys.argv[1])

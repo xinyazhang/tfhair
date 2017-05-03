@@ -248,9 +248,11 @@ def check_failure(frames, path):
 
     h = 1.0/1024.0
     n = xsshape[1] - 1
-    dpairs = TFDistanceFilter(h, crod.GetMidPointsTF(), tf.constant(200.0))
+    dpairs = TFDistanceFilter(h, crod.GetMidPointsTF(), tf.constant(2400.0))
     sela_gcan = tf.slice(dpairs, [0, 0], [-1, 2])
     selb_gcan = tf.slice(dpairs, [0, 2], [-1, 2])
+    sv1op = TFSignedVolumes(crod.xs, sela_gcan, selb_gcan)
+    sv2op = TFSignedVolumes(nrod.xs, sela_gcan, selb_gcan)
     convexity = TFRodCCDExtended(crod, nrod, srod, sela_gcan, selb_gcan)
     collisions = ConvexityFilter(dpairs, convexity)
 
@@ -264,7 +266,15 @@ def check_failure(frames, path):
                     nrod.xs:cpos1,
                     srod.xs:cpos1,
                     }
-            print('frame {}, collision {}'.format(frames[f], sess.run(collisions, feed_dict=inputdict)))
+            cancol = sess.run(dpairs, feed_dict=inputdict)
+            col = sess.run(collisions, feed_dict=inputdict)
+            sv1,sv2 = sess.run([sv1op,sv2op], feed_dict=inputdict)
+            print('frame {}, cancollision {} collision {}'.format(frames[f], cancol, col))
+            print('SV1 {}'.format(sv1))
+            print('SV2 {}'.format(sv2))
+            print(cpos0-cpos1)
+            print('crod {}'.format(sess.run(crod.xs, feed_dict=inputdict)))
+            print('nrod {}'.format(sess.run(nrod.xs, feed_dict=inputdict)))
 
 def run_test3():
     check_failure([47,48,49,51,51], 'testdata_ccd7')
@@ -272,12 +282,20 @@ def run_test3():
 def run_test4():
     check_failure([59,60,61,62], 'testdata_ccd7_CH2')
 
+def run_test5():
+    check_failure([132,133], 'testdata_ccd7_lowstiff_lowlearingrate')
+
+def run_test6():
+    check_failure([44,45,46], 'testdata_ccd8')
+
 def run():
     run_test0()
     run_test1()
     run_test2()
     run_test3()
+    run_test4()
+    run_test5()
+    run_test6()
 
 if __name__ == '__main__':
-    run_test3()
-    run_test4()
+    run_test6()

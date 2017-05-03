@@ -27,7 +27,7 @@ class SphericalBodyS(object):
     Constructor takes a list of spheres, i.e. center, radius (possibly velocity?).
     Center, and radius, of course could be tensors, placeholders, etc
     """
-    CoR = 0.1
+    CoR = 0.2
     margin = 0.0       # spacing for collision
 
     def __init__(self, centers, radii):

@@ -217,14 +217,13 @@ class HairScene(Scene):
             initds[i,:] = np.array(d3)
 
         # assign anchor points
-        anchors = np.zeros(shape=(self.scene.frame_end, n_rods, 3), dtype=np.float32)
+        anchors = np.zeros(shape=(self.scene.frame_end, 2, n_rods, 3), dtype=np.float32)
         for frame, anchor in enumerate(anchors):
             print("Generate frame %d" % frame)
             bpy.context.scene.frame_set(frame)
-            # print(obj.matrix_world)
             for i, h in enumerate(hairs):
-                anchor[i,:] = np.array(obj.matrix_world * h.hair_keys[0].co)
-                # print(mathutils.Vector(anchors[frame,i,:]))
+                anchor[0,i,:] = np.array(obj.matrix_world * h.hair_keys[0].co)
+                anchor[1,i,:] = np.array(obj.matrix_world * h.hair_keys[1].co)
         print("Done")
 
         filename = os.path.abspath(filename)

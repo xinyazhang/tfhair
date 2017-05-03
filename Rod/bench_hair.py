@@ -94,13 +94,13 @@ def run_hair_bench(matfile):
             omegas=omegas,
             initd1=initd1
     )
-    icond.alpha = 0.1
-    icond.beta = 0.1
+    icond.alpha = 1e-1
+    icond.beta = 1e-3
     icond.g = 9.8
 
     n_rods, n_segs = thetas.shape
     h = 1.0/1024.0
-    rho = 0.001
+    rho = 1e-3
 
     run_with_bc(n_rods, n_segs, h, rho, icond, anchors, '/tmp/tfhair', obstacle=obstacle)
 

@@ -493,10 +493,15 @@ class ElasticRodS:
         pseudonrod.InitTF(self)
         if (not self.refd1s is None) and (not self.refd2s is None):
             TFPropogateRefDs(self, pseudonrod)
+        '''
         E = self.alpha * pseudonrod.GetEBendTF() \
                 + self.beta * pseudonrod.GetETwistTF() \
                 + pseudonrod.GetEGravityTF() \
                 # + _stiff * pseudonrod.GetEConstaintTF()
+        '''
+        E = self.beta * pseudonrod.GetETwistTF() \
+            + pseudonrod.GetEGravityTF() \
+            # + _stiff * pseudonrod.GetEConstaintTF()
         # print('E: {}'.format(E))
         # print('pseudonrod.xs: {}'.format(pseudonrod.xs))
         # print('pseudonrod.thetas: {}'.format(pseudonrod.thetas))
@@ -626,9 +631,11 @@ class ElasticRodS:
             ndim = _ndim(rod.xs)
             start = list([0] * ndim)
             size = list([-1] * ndim)
-            size[-2] = 1
-            firstX = tf.unstack(tf.slice(rod.xs, start, size), axis=ndim - 2)[0]
-            diff = firstX - rod.anchors
+            size[-2] = 2
+            # firstX = tf.unstack(tf.slice(rod.xs, start, size), axis=ndim - 2)[0]
+            # diff = firstX - rod.anchors
+            firstSeg = tf.unstack(tf.slice(rod.xs, start, size), axis=ndim - 2)
+            diff = firstSeg - rod.anchors
             total += tf.reduce_sum(_dot(diff, diff)) * rod.anchor_stiffness
         elif rod.sparse_anchor_indices is not None:
             gxs = tf.gather_nd(rod.xs, rod.sparse_anchor_indices)

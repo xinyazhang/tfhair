@@ -21,6 +21,9 @@ def run_with_bc(n, h, rho, icond, path, icond_updater=None, obstacle=None):
     irod.clone_args_from(icond)
     if icond.anchors is not None:
         irod.anchors = tf.placeholder(tf.float32, shape=icond.anchors.shape)
+    if icond.sparse_anchor_indices is not None:
+        irod.sparse_anchor_indices = tf.placeholder(tf.int32, shape=[None, 1])
+        irod.sparse_anchor_values = tf.placeholder(tf.float32, shape=[None, 3])
 
     orod = irod.CalcNextRod(h)
     rrod = orod.CalcPenaltyRelaxationTF(h)
@@ -276,7 +279,7 @@ def run_test6():
 
 def SinAnchor(h, icond):
     icond.anchors = np.array([0.0, math.sin(icond.t), 0.0])
-    icond.t += h * 32
+    icond.t += h * 8
 
 def run_test7():
     '''
@@ -316,7 +319,7 @@ def run_test8():
     rho = 1.0
 
     xs = np.array([[i*0.5,-2,0] for i in iterator])
-    xdots = np.array([[0,0,0]] + [[0,100,0]] * (n-1) + [[0,0,0]])
+    xdots = np.array([[0,100,0]] * (n+1))
     thetas = np.zeros(shape=[n], dtype=np.float32)
     omegas = np.zeros(shape=[n], dtype=np.float32)
     icond = helper.create_BCRod(xs=xs,
@@ -346,7 +349,7 @@ def run_test9():
     rho = 1.0
 
     xs = np.array([[0,0,i] for i in iterator])
-    xdots = np.array([[0,0,0]] + [[0,100,0]] * n)
+    xdots = np.array([[0,0,0]] * n + [[0,100,0]])
     thetas = np.zeros(shape=[n], dtype=np.float32)
     omegas = np.zeros(shape=[n], dtype=np.float32)
     icond = helper.create_BCRod(xs=xs,
@@ -362,6 +365,52 @@ def run_test9():
 
     run_with_bc(n, h, rho, icond, '/tmp/tftest9', icond_updater=FixedAnchor, obstacle=obstacle)
 
+def run_test10():
+    '''
+    Test 10: ahoge, hair with strong bending coefficient,
+    dangling effect
+    This requires 2000 iterations
+    '''
+    centers = [ np.array([0.0, 0.0, 0.0]) ]
+    radii = [ np.array([1.0]) ]
+    obstacle = SphericalBodyS(centers, radii)
+
+    iterator = xrange(1,6)
+    n = len(list(iterator)) - 1
+    h = 1.0/1024.0
+    rho = 1e-2
+
+    xs = np.array(
+        [[0,0,i] for i in iterator]
+    )
+    xdots = np.array(
+        [[0,0,0]] * n + [[0,10,0]]
+    )
+    thetas = np.zeros(shape=[n], dtype=np.float32)
+    omegas = np.zeros(shape=[n], dtype=np.float32)
+    initd1 = np.array(
+        [0,1,0]
+    )
+    icond = helper.create_BCRod(xs=xs,
+            xdots=xdots,
+            thetas=thetas,
+            omegas=omegas,
+            initd1=initd1)
+    icond.alpha = 100
+    icond.beta = 0.01
+
+    icond.sparse_anchor_indices = np.array([
+            [0],
+            [1],
+        ], dtype=np.int32)
+    icond.sparse_anchor_values = np.array([
+            xs[0,:],
+            xs[1,:],
+        ], dtype=np.float32)
+    icond.g = 9.8
+
+    run_with_bc(n, h, rho, icond, '/tmp/tftest10', obstacle=obstacle)
+
 def run():
     run_test0()
     run_test1()
@@ -373,6 +422,7 @@ def run():
     run_test7()
     run_test8()
     run_test9()
+    run_test10()
 
 if __name__ == '__main__':
     run()

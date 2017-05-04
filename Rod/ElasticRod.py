@@ -334,10 +334,10 @@ def TFApplyImpulse(h, rods, ASelS, BSelS, impulse, factor):
     ASelX_p1 = ASelS + tf.constant([0,1])
     BSelX_p1 = BSelS + tf.constant([0,1])
     indices = tf.concat([ASelS, ASelX_p1 , BSelS, BSelX_p1], axis=0)
-    gAvertmass = _paddim(tf.gather_nd(rods.fullrestvl, ASelX))
-    gAvertmass_p1 = _paddim(tf.gather_nd(rods.fullrestvl, ASelX_p1))
-    gBvertmass = _paddim(tf.gather_nd(rods.fullrestvl, BSelX))
-    gBvertmass_p1 = _paddim(tf.gather_nd(rods.fullrestvl, BSelX_p1))
+    gAvertmass = _paddim(tf.gather_nd(rods.fullrestvl * rods.rho, ASelX))
+    gAvertmass_p1 = _paddim(tf.gather_nd(rods.fullrestvl * rods.rho, ASelX_p1))
+    gBvertmass = _paddim(tf.gather_nd(rods.fullrestvl * rods.rho, BSelX))
+    gBvertmass_p1 = _paddim(tf.gather_nd(rods.fullrestvl * rods.rho, BSelX_p1))
     # factor = 2.0
     impulse_to_A = factor * impulse / gAvertmass
     impulse_to_A_p1 = factor * impulse / gAvertmass_p1
@@ -740,7 +740,7 @@ class ElasticRodS:
         z_begin[-1] = 2
         z_size = list([-1] * len(rod.xs.get_shape()))
         Zs = tf.slice(rod.xs, z_begin, z_size) - rod.floor_z
-        return 0.5 * rod.g * tf.reduce_sum(tf.multiply(Zs, Zs) * _paddim(rod.fullrestvl))
+        return 0.5 * rod.g * tf.reduce_sum(tf.multiply(Zs, Zs) * _paddim(rod.fullrestvl * rod.rho))
 
     def TFKineticI(rodnow, rodnext, h):
         rodnow.xdots = 1/h * (rodnext.xs - rodnow.xs)

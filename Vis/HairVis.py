@@ -28,7 +28,7 @@ def ParseArgs():
     parser = optparse.OptionParser()
     parser.add_option("", "--fps", dest="fps", default=1000.0, type=float, help="set fps for rendering")
     parser.add_option("", "--dump", dest="dump", help="set dump file")
-    parser.add_option("", "--template", dest="template", default="SimpleHair.blend", help="set template file")
+    parser.add_option("", "--template", dest="template", default="HairBaseMod.blend", help="set template file")
     script = os.path.basename(__file__)
     index1 = [i for i, arg in enumerate(sys.argv) if script in arg]
     index2 = [i for i, arg in enumerate(sys.argv) if arg == "--"]

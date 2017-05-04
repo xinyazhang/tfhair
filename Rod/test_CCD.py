@@ -160,8 +160,10 @@ class FakeRods:
             self.midpoints = (xs_i_1 + xs_i) / 2.0
         return self.midpoints
 
-    def __init__(self):
-        self.xs = None
+    def __init__(self, xs):
+        self.xs = xs
+        self.evec = TFGetEdgeVector(self.xs)
+        self.tans = ER._normalize(self.evec)
         self.midpoints = None
 
 def run_test2():
@@ -178,12 +180,9 @@ def run_test2():
     # cpos1[0,:,:] += np.array([0,0,-0.1])
     xsshape = cpos0.shape
     print(xsshape)
-    crod = FakeRods()
-    nrod = FakeRods()
-    srod = FakeRods()
-    crod.xs = tf.placeholder(dtype=tf.float32, shape=xsshape)
-    nrod.xs = tf.placeholder(dtype=tf.float32, shape=xsshape)
-    srod.xs = tf.placeholder(dtype=tf.float32, shape=xsshape)
+    crod = FakeRods(tf.placeholder(dtype=tf.float32, shape=xsshape))
+    nrod = FakeRods(tf.placeholder(dtype=tf.float32, shape=xsshape))
+    srod = FakeRods(tf.placeholder(dtype=tf.float32, shape=xsshape))
 
     h = 1.0/1024.0
     n = xsshape[1] - 1
@@ -239,12 +238,9 @@ def check_failure(frames, path):
     # cpos1[0,:,:] += np.array([0,0,-0.1])
     xsshape = fdata[0].shape
     print(xsshape)
-    crod = FakeRods()
-    nrod = FakeRods()
-    srod = FakeRods()
-    crod.xs = tf.placeholder(dtype=tf.float32, shape=xsshape)
-    nrod.xs = tf.placeholder(dtype=tf.float32, shape=xsshape)
-    srod.xs = tf.placeholder(dtype=tf.float32, shape=xsshape)
+    crod = FakeRods(tf.placeholder(dtype=tf.float32, shape=xsshape))
+    nrod = FakeRods(tf.placeholder(dtype=tf.float32, shape=xsshape))
+    srod = FakeRods(tf.placeholder(dtype=tf.float32, shape=xsshape))
 
     h = 1.0/1024.0
     n = xsshape[1] - 1
@@ -272,9 +268,18 @@ def check_failure(frames, path):
             print('frame {}, cancollision {} collision {}'.format(frames[f], cancol, col))
             print('SV1 {}'.format(sv1))
             print('SV2 {}'.format(sv2))
-            print(cpos0-cpos1)
-            print('crod {}'.format(sess.run(crod.xs, feed_dict=inputdict)))
-            print('nrod {}'.format(sess.run(nrod.xs, feed_dict=inputdict)))
+            s=18
+            print(np.array(sess.run(srod.faceconvexity, feed_dict=inputdict))[:, s])
+            print('cancollision {}'.format(cancol[s]))
+            print('SV1 {}'.format(sv1[s]))
+            print('SV2 {}'.format(sv2[s]))
+            print('cpos fixed {}-{}'.format(cpos0[0,10], cpos0[0,11]))
+            print('cpos moving {}-{}'.format(cpos0[1,9], cpos0[1,10]))
+            print('npos fixed {}-{}'.format(cpos1[0,10], cpos1[0,11]))
+            print('npos moving {}-{}'.format(cpos1[1,9], cpos1[1,10]))
+            # print('npos {}'.format(sv2[s]))
+            # print('crod {}'.format(sess.run(crod.xs, feed_dict=inputdict)))
+            # print('nrod {}'.format(sess.run(nrod.xs, feed_dict=inputdict)))
 
 def run_test3():
     check_failure([47,48,49,51,51], 'testdata_ccd7')
@@ -288,6 +293,9 @@ def run_test5():
 def run_test6():
     check_failure([44,45,46], 'testdata_ccd8')
 
+def run_test7():
+    check_failure([50,51], 'testdata_ccd7_cvx')
+
 def run():
     run_test0()
     run_test1()
@@ -298,4 +306,4 @@ def run():
     run_test6()
 
 if __name__ == '__main__':
-    run_test6()
+    run_test7()

@@ -352,7 +352,7 @@ def run_test6():
     icond.constraint_tolerance = 5 # low-stiffness rods
     icond.anchor_stiffness = 1e3 # but we need maintain the anchor constrants
     icond.t = 0.0
-    icond.ccd_threshold = 5.0
+    icond.ccd_threshold = 0.5/h
     def DualRotator(h, icond):
         #icond.sparse_anchor_values[2, :] = np.array([math.cos(icond.t), math.sin(icond.t), 5.0], dtype=np.float32)
         icond.sparse_anchor_values = np.array([
@@ -389,10 +389,11 @@ def run_test7():
     n = 20
     h = 1.0/1024.0
     rho = 1.0
+    height = 3.0
 
     delta = 0.2
     roda_xs = helper.create_string(np.array([-5,0,0]), np.array([5,0,0]), n)
-    rodb_xs = helper.create_string(np.array([delta,-5+delta,5.1]), np.array([delta, 5+delta, 5.1]), n)
+    rodb_xs = helper.create_string(np.array([delta,-5+delta,height]), np.array([delta, 5+delta, height]), n)
     rods_xs = np.array([roda_xs, rodb_xs])
     # print(rods_xs)
     roda_thetas = np.zeros(shape=[n], dtype=np.float32)
@@ -411,11 +412,11 @@ def run_test7():
             omegas=rods_thetas,
             initd1=initd1
             )
-    icond.alpha = 0.05
+    icond.alpha = 0.5
     icond.beta = 0.05
     icond.t = 0.0
-    icond.ccd_threshold = 400.0
-    icond.constraint_tolerance = 1e-3 * n * 2 # mid-stiffness rods
+    icond.ccd_threshold = 40.0 / h
+    icond.constraint_tolerance = 1e-5 * n * 2 # mid-stiffness rods
     icond.anchor_stiffness = 1e3 # maintain the anchor constrants
     icond.sparse_anchor_indices = np.array([
             [0, 0],
@@ -436,10 +437,11 @@ def run_test8():
     n = 1
     h = 1.0/1024.0
     rho = 1.0
+    height = 5.0
 
-    delta = -0.6
+    delta = -1.6
     roda_xs = helper.create_string(np.array([-1+delta,0,0]), np.array([1 + delta,0,0]), n)
-    rodb_xs = helper.create_string(np.array([0,-1,5]), np.array([0,1,5]), n)
+    rodb_xs = helper.create_string(np.array([0,-1,height]), np.array([0,1,height]), n)
     rods_xs = np.array([roda_xs, rodb_xs])
     # print(rods_xs)
     roda_thetas = np.zeros(shape=[n], dtype=np.float32)
@@ -461,7 +463,7 @@ def run_test8():
     icond.alpha = 0.05
     icond.beta = 0.05
     icond.t = 0.0
-    icond.ccd_threshold = 250.0
+    icond.ccd_threshold = 200.0 / h
     icond.sparse_anchor_indices = np.array([
             [0, 0],
             [0, n],
@@ -485,4 +487,4 @@ def run():
     run_test8()
 
 if __name__ == '__main__':
-    run_test8()
+    run_test7()

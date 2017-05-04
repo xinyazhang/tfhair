@@ -118,8 +118,7 @@ def TFGetLengthConstraintFunction(rod):
 def TFParallelTransportQuaternion(prod, crod):
     axes = -tf.cross(prod.tans, crod.tans)
     cosines = _dot(prod.tans, crod.tans)
-    halfconsines = tf.sqrt((cosines + 1)/2.0)
-    halfconsines = tf.stack([halfconsines], _lastdim(halfconsines)+1) # pad one dimension
+    halfconsines = _paddim(tf.sqrt((cosines + 1)/2.0))
     #print(axes.get_shape())
     #print(halfconsines.get_shape())
     bcd = tf.multiply(axes, 0.5/halfconsines)
@@ -174,6 +173,7 @@ def TFSignedVolumes(xs, SelA, SelB):
     cvec = gbxs_i - gbxs_i_1
     return _dot(avec, tf.cross(bvec, cvec))
 
+
 def TFConvexityByList(tensormat):
     '''
     tensormat: 8x6 array of tensors, check TFRodCCDExtended for details
@@ -205,6 +205,19 @@ def TFConvexityByList(tensormat):
         # print('dotsigns[0] shape: {}'.format(dotsigns[0].get_shape()))
         faceconvexity.append(tf.equal(dotsigns[0], dotsigns[1]))
         faceconvexity.append(tf.equal(dotsigns[0], dotsigns[2]))
+        """
+        def _eqsign(sign1, sign2):
+            '''
+            _sign: same sign test (loss), truth table
+            sign1 sign2->   -1  0  1
+            -1               T  T  F
+            0                T  T  T
+            1                F  T  T
+            '''
+            return tf.greater_equal(tf.multiply(sign1, sign2), tf.constant(0.0))
+        faceconvexity.append(_eqsign(dotsigns[0], dotsigns[1]))
+        faceconvexity.append(_eqsign(dotsigns[0], dotsigns[2]))
+        """
         accumdots.append(dots)
     # return faceconvexity
     convexity = faceconvexity[0]
@@ -218,9 +231,19 @@ def TFConvexityByList(tensormat):
 def TFRodCCDExtended_signed_volume_based(crod, nrod, srod, ASelS, BSelS):
     cvolumes = TFSignedVolumes(crod.xs, ASelS, BSelS)
     nvolumes = TFSignedVolumes(nrod.xs, ASelS, BSelS)
-    return tf.less(cvolumes * nvolumes, tf.constant(0.0))
+    return tf.not_equal(tf.sign(cvolumes), tf.sign(nvolumes))
 
-def TFRodCCDExtended_convexity_based(crod, nrod, srod, ASelS, BSelS):
+def TFRodXSel_padded(rods, Sel):
+    xs = rods.xs
+    xs_i_1, xs_i = _diffslices(xs, dim=_lastdim(xs)-1)
+    gxs_i_1 = tf.gather_nd(xs_i_1, Sel)
+    gxs_i = tf.gather_nd(xs_i, Sel)
+    tans = tf.gather_nd(rods.tans, Sel)
+    gxs_i_1 -= 1e-3 * tans
+    gxs_i += 1e-3 * tans
+    return gxs_i_1, gxs_i
+
+def TFRodCCDExtended_convexity_based_directed(crod, nrod, srod, ASelS, BSelS):
 
     '''
     Continus Collision Detection between Rod A and Rod B
@@ -233,12 +256,12 @@ def TFRodCCDExtended_convexity_based(crod, nrod, srod, ASelS, BSelS):
     Note: assumes 2 now, 4 may use TFRodSCCD
     '''
     ''' Gathered Current Xs '''
-    gcxs_k_1, gcxs_k = TFRodXSel(crod.xs, ASelS)
+    gcxs_k_1, gcxs_k = TFRodXSel_padded(crod, ASelS)
     # print(gcxs_k.get_shape())
     # return tf.shape(gcxs_k)
     ''' Gathered Next Xs '''
-    gnxs_k_1, gnxs_k = TFRodXSel(nrod.xs, ASelS)
-    npoles, spoles = TFRodXSel(srod.xs, BSelS) # FIXME: use srod based reference system
+    gnxs_k_1, gnxs_k = TFRodXSel_padded(nrod, ASelS)
+    npoles, spoles = TFRodXSel_padded(srod, BSelS) # FIXME: use srod based reference system
     verts = [
             [npoles, gcxs_k_1, gcxs_k, gnxs_k, gnxs_k_1, spoles],
             [npoles, gcxs_k, gnxs_k, gnxs_k_1, gcxs_k_1, spoles],
@@ -255,9 +278,20 @@ def TFRodCCDExtended_convexity_based(crod, nrod, srod, ASelS, BSelS):
     srod.accumdots = accumdots # FIXME: This is for debug
     return convexity
 
+def TFRodCCDExtended_convexity_based(crod, nrod, srod, ASelS, BSelS):
+    # cvx3 = TFRodCCDExtended_convexity_based_directed(crod, nrod, crod, ASelS, BSelS)
+    # cvx4 = TFRodCCDExtended_convexity_based_directed(crod, nrod, crod, BSelS, ASelS)
+    # return tf.logical_or(cvx3, cvx4)
+    cvx1 = TFRodCCDExtended_convexity_based_directed(crod, nrod, srod, ASelS, BSelS)
+    cvx2 = TFRodCCDExtended_convexity_based_directed(crod, nrod, srod, BSelS, ASelS)
+    return tf.logical_or(cvx1, cvx2)
+    # cvx3 = TFRodCCDExtended_convexity_based_directed(crod, nrod, crod, ASelS, BSelS)
+    # cvx4 = TFRodCCDExtended_convexity_based_directed(crod, nrod, crod, BSelS, ASelS)
+    # return tf.logical_or(tf.logical_or(cvx3, cvx4), tf.logical_or(cvx1, cvx2))
+
 def TFRodCCDExtended(crod, nrod, srod, ASelS, BSelS):
-    return TFRodCCDExtended_signed_volume_based(crod, nrod, srod, ASelS, BSelS)
-    #return TFRodCCDExtended_convexity_based(crod, nrod, srod, ASelS, BSelS)
+    # return TFRodCCDExtended_signed_volume_based(crod, nrod, srod, ASelS, BSelS)
+    return TFRodCCDExtended_convexity_based(crod, nrod, srod, ASelS, BSelS)
 
 def TFRodCCD(crod, nrod, srod, ASelS, BSelS):
     a_list = TFRodCCDExtended(crod, nrod, srod, ASelS, BSelS)
@@ -283,7 +317,7 @@ def TFRodCollisionImpulse(h, crod, nrod, srod, ASelS_in, BSelS_in, convexity = N
     gqdots = ((gnxs_k_1 - gcxs_k_1) + (gnxs_k - gcxs_k)) / (2 * h)
     # return tf.shape(gnxs_k_1)
     # return tf.shape(gqdots)
-    grqdots = TFRodXDotSel(srod.xdots, BSelS)
+    grqdots = TFRodXDotSel(crod.xdots, BSelS)
     relqdots = gqdots - grqdots
     gtans = tf.gather_nd(srod.tans, BSelS)
     # return relqdots
@@ -292,8 +326,6 @@ def TFRodCollisionImpulse(h, crod, nrod, srod, ASelS_in, BSelS_in, convexity = N
     gnormals = tf.cross(gtans, tf.cross(gtans, relqdots))
     gsegmass = _paddim(tf.gather_nd(nrod.restl, ASelS))
     # print('gmass: {}'.format(gmass))
-    # TODO: This is just for debug
-    srod.convexity = convexity
     return 0.5 * h * gnormals * gsegmass, ASelS, BSelS
 
 def TFApplyImpulse(h, rods, ASelS, BSelS, impulse, factor):
@@ -331,7 +363,7 @@ def _translate_from_stacked(nrods, segidi, segidj, rodids):
     jcol = unit_col * tf.convert_to_tensor(segidj, dtype=tf.int64)
     return tf.where(cond, tf.stack([rodids, icol], axis=1), tf.stack([rodids - nrods, jcol], axis=1))
 
-# Innerloop for i == j
+# Innerloop (#, i) vs (#, j) for i == j
 def TFSegmentVsSegmentDistanceFilterNoCat(h, i, j, xs, sqnxs, thresh, to_stack):
     nrods = tf.cast(tf.shape(xs)[0], tf.int64)
     xst = _pick_segment_from_rods(xs, i)
@@ -366,12 +398,14 @@ def TFSegmentVsSegmentDistanceFilterNoInnerCross(h, i, j, xs, sqnxs, thresh, to_
     #print(indices)
     Arods,Brods = tf.unstack(indices, 2, axis=1)
     # print(Arods)
-    processed = tf.where(tf.less(Arods, Brods)) # Only consider pairs (Alpha, i) (Beta, j) where Alpha < Beta
-    # print(processed)
-    # ArodsRemain = tf.gather_nd(Arods, processed)
-    # BrodsRemain = tf.gather_nd(Brods, processed)
-    ArodsRemain = Arods
-    BrodsRemain = Brods
+    '''
+    Only detect collision b/w different rods
+    '''
+    processed = tf.where(tf.not_equal(Arods, Brods))
+    ArodsRemain = tf.gather_nd(Arods, processed)
+    BrodsRemain = tf.gather_nd(Brods, processed)
+    # ArodsRemain = Arods
+    # BrodsRemain = Brods
     unit_col = tf.ones_like(ArodsRemain, dtype=tf.int64)
     icol = unit_col * tf.convert_to_tensor(i, dtype=tf.int64)
     jcol = unit_col * tf.convert_to_tensor(j, dtype=tf.int64)
@@ -552,7 +586,7 @@ class ElasticRodS:
         nrod.InitTF(pseudonrod)
         return nrod
 
-    def CalcPenaltyRelaxationTF(self, h, learning_rate=1e-4):
+    def CalcPenaltyRelaxationTF(self, h, learning_rate=1e-5):
         xs = tf.Variable(np.zeros(shape=self.xs.get_shape().as_list(), dtype=np.float32), name='xs')
         relaxxdots = self.xdots + (xs - self.xs) / h
         relaxrod = ElasticRodS(
@@ -600,7 +634,7 @@ class ElasticRodS:
                 #    orod.thetas, orod.omegas], feed_dict=inputdict)
             leaving_iter = 0
             E = 0.0
-            for i in range(1000):
+            for i in range(2000):
                 # sess.run(self.train_op, feed_dict=inputdict)
                 E, _ = sess.run([self.loss, self.apply_grads_op], feed_dict=inputdict, options=options, run_metadata=run_metadata)
                 leaving_iter = i
@@ -627,8 +661,9 @@ class ElasticRodS:
                     break
                 AdaptiveCH = CH
                 while not self.DetectAndApplyImpulse(sess, h, ccddict):
-                    AdaptiveCH += 1e-2
+                    AdaptiveCH *= 1.2
                     ccddict.update({self.ccd_factor:AdaptiveCH})
+                    # print('AdaptiveCH {}'.format(AdaptiveCH))
                     pass
             else:
                 break
@@ -734,26 +769,30 @@ class ElasticRodS:
             self.selb = tf.slice(distance_pairs, [0, 2], [-1, 2])
         self.impulse_with_sels = TFRodCollisionImpulse(h, irod, self, self, self.sela, self.selb)
         self.ccd_factor = tf.placeholder(dtype=tf.float32)
-        self.appled_xs = TFApplyImpulse(h, self,\
+        self.applied_xs = TFApplyImpulse(h, self,\
                 self.impulse_with_sels[1],\
                 self.impulse_with_sels[2],\
                 self.impulse_with_sels[0],
                 self.ccd_factor
                 )
-        self.apply_impulse_op = tf.assign(self.xs, self.appled_xs)
+        self.apply_impulse_op = tf.assign(self.xs, self.applied_xs)
         # print(self.apply_impulse_op)
         return self
 
     def DetectAndApplyImpulse(self, sess, h, inputdict):
         # print('xs before impulse {}'.format(sess.run(self.xs, feed_dict=inputdict)))
-        ops = [self.impulse_with_sels[1], self.impulse_with_sels[2], self.apply_impulse_op]
-        sela_results, selb_results,_ = sess.run(ops, feed_dict=inputdict)
+        ops = [tf.concat([self.impulse_with_sels[1], self.impulse_with_sels[2]], axis=1),\
+                self.impulse_with_sels[0],\
+                self.apply_impulse_op]
+        sels_results, impulse_results, _ = sess.run(ops, feed_dict=inputdict)
         # cvx = sess.run(self.convexity, feed_dict=inputdict)
         # print('detected collision {}'.format(np.concatenate([sela_results, selb_results], axis=1)))
         # print('convexity list {}'.format(cvx))
         # print(sess.run(self.impulse_with_sels, feed_dict=inputdict))
-        # print('xs after impulse {}'.format(sess.run(self.xs, feed_dict=inputdict)))
-        return len(sela_results) == 0
+        print('collision {}'.format(sels_results))
+        print('impulse {}'.format(impulse_results))
+        print('xs after impulse {}'.format(sess.run(self.xs, feed_dict=inputdict)))
+        return len(sels_results) == 0
         # return True
 
     def GetMidPointsTF(self):

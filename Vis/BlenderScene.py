@@ -244,6 +244,13 @@ class HairScene(Scene):
             "omega"  : omega,
             "initd"  : initds,
             "anchor" : anchors,
-            "anchor_indices" : indices
+            "anchor_indices" : indices,
         }
+        if "Obstacle" in bpy.data.objects:
+            obj = bpy.data.objects["Obstacle"]
+            obstacle_centers = [ np.array(obj.location) ]
+            obstacle_radii = [ np.array([obj.scale.x]) ]
+            mdict["obstacle_centers"] = obstacle_centers,
+            mdict["obstacle_radii"] = obstacle_radii,
+
         scipy.io.savemat(filename, mdict, appendmat=True)

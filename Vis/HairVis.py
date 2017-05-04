@@ -28,6 +28,7 @@ def ParseArgs():
     parser = optparse.OptionParser()
     parser.add_option("", "--fps", dest="fps", default=1000.0, type=float, help="set fps for rendering")
     parser.add_option("", "--dump", dest="dump", help="set dump file")
+    parser.add_option("", "--template", dest="template", default="SimpleHair.blend", help="set template file")
     script = os.path.basename(__file__)
     index1 = [i for i, arg in enumerate(sys.argv) if script in arg]
     index2 = [i for i, arg in enumerate(sys.argv) if arg == "--"]
@@ -88,4 +89,5 @@ if __name__ == "__main__":
     bpy.app.handlers.load_post.append(LoadBlendCallback)
 
     # init hair scene with head and scalp
-    LoadBlend(os.path.join(script_path, "templates", "HairBase.blend"))
+    options, _ = ParseArgs()
+    LoadBlend(os.path.join(script_path, "templates", options.template))

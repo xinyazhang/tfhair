@@ -27,7 +27,8 @@ def run_with_bc(n_rods, n_segs, h, rho, icond, anchors, path, obstacle=None):
     irod.sparse_anchor_values = tf.placeholder(tf.float32, shape=[None, 3])
 
     orod = irod.CalcNextRod(h)
-    rrod = orod.CalcPenaltyRelaxationTF(h)
+    rrod = orod.CalcPenaltyRelaxationTF(h, 7e-5)
+    # rrod = orod.CalcPenaltyRelaxationTF(h)
     if obstacle is not None:
         rrod.obstacle_impulse_op = obstacle.DetectAndApplyImpulseOp(h, rrod)
 
@@ -75,10 +76,6 @@ def HeadCollisionPotential(rod):
     return TKGetForbiddenSphere(center, radius, rod)
 
 def run_hair_bench(matfile):
-    centers = [ np.array([0.0, 0.0, 0.0]) ]
-    radii = [ np.array([1.0]) ]
-    obstacle = SphericalBodyS(centers, radii)
-
     mdict = {}
     scipy.io.loadmat(matfile, mdict)
 
@@ -105,6 +102,10 @@ def run_hair_bench(matfile):
 
     icond.sparse_anchor_indices = anchor_indices
     icond.sparse_anchor_values = anchor_values[0]
+
+    centers = mdict["obstacle_centers"]
+    radii = mdict["obstacle_radii"]
+    obstacle = SphericalBodyS(centers, radii)
 
     run_with_bc(n_rods, n_segs, h, rho, icond, anchor_values, '/tmp/tfhair', obstacle=obstacle)
 

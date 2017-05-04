@@ -173,7 +173,7 @@ class Rod(object):
         mat[0][0:3] = e1
         mat[1][0:3] = e2
         mat[2][0:3] = e3
-        mat.transpose()
+        # mat.transpose()
         mat.invert()
         return mat.to_euler()
 

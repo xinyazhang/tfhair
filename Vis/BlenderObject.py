@@ -4,10 +4,20 @@ import numpy as np
 
 from math import sin, cos, acos, atan2, pi
 
+def MakeCircleSquare():
+    spline = bpy.data.curves["BezierCircle"].splines[0]
+    bezier_points = spline.bezier_points
+    for pt in bezier_points:
+        pt.handle_left_type = "FREE"
+        pt.handle_right_type = "FREE"
+        pt.handle_left = pt.co
+        pt.handle_right = pt.co
+
 def CreateBevelCircle():
     if "BezierCircle" not in bpy.data.objects:
         bpy.ops.curve.primitive_bezier_circle_add()
         bpy.data.objects["BezierCircle"].hide = True
+        MakeCircleSquare()
     return bpy.data.objects["BezierCircle"]
 
 class Sphere(object):

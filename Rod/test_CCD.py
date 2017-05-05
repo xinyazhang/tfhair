@@ -226,7 +226,7 @@ def run_test2():
         print(sess.run(dpairs, feed_dict=inputdict))
         print(sess.run(convex_sel, feed_dict=inputdict))
 
-def check_failure(frames, path):
+def check_failure(frames, path, narrow_distance=0.1, false_positive=False):
     fdata = []
     for frame in frames:
         mat=spio.loadmat('{}/{}.mat'.format(path, frame))
@@ -244,12 +244,13 @@ def check_failure(frames, path):
 
     h = 1.0/1024.0
     n = xsshape[1] - 1
-    dpairs = TFDistanceFilter(h, crod.GetMidPointsTF(), tf.constant(0.1/h))
+    dpairs = TFDistanceFilter(h, crod.GetMidPointsTF(), tf.constant(narrow_distance/h))
     sela_gcan = tf.slice(dpairs, [0, 0], [-1, 2])
     selb_gcan = tf.slice(dpairs, [0, 2], [-1, 2])
     sv1op = TFSignedVolumes(crod.xs, sela_gcan, selb_gcan)
     sv2op = TFSignedVolumes(nrod.xs, sela_gcan, selb_gcan)
     convexity = TFRodCCDExtended(crod, nrod, srod, sela_gcan, selb_gcan)
+    convexity_location = tf.where(tf.equal(convexity, True))
     collisions = ConvexityFilter(dpairs, convexity)
 
     with tf.Session() as sess:
@@ -264,21 +265,62 @@ def check_failure(frames, path):
                     }
             cancol = sess.run(dpairs, feed_dict=inputdict)
             cvx = sess.run(convexity, feed_dict=inputdict)
+            cvx_loc = sess.run(convexity_location, feed_dict=inputdict)
+            if len(cvx_loc) == 0:
+                if false_positive:
+                    print("False positive PASSED")
+                    continue
+            else:
+                cvx_loc = cvx_loc[0]
             col = sess.run(collisions, feed_dict=inputdict)
             sv1,sv2 = sess.run([sv1op,sv2op], feed_dict=inputdict)
             print("frame {}\ncancollision {}\nconvexity {}\ncollision {}".format(frames[f], cancol, cvx, col))
             print('SV1 {}'.format(sv1))
             print('SV2 {}'.format(sv2))
-            print('abcd {}'.format(sess.run([srod.dbg_a, srod.dbg_b, srod.dbg_c, srod.dbg_d], feed_dict=inputdict)))
-            print('p {}'.format(sess.run(srod.dbg_p, feed_dict=inputdict)))
-            print('q {}'.format(sess.run(srod.dbg_q, feed_dict=inputdict)))
-            print('single real roots {}'.format(sess.run(srod.dbg_signleroots, feed_dict=inputdict)))
-            print('    Abar {}'.format(sess.run(srod.dbg_Abar, feed_dict=inputdict)))
-            print('    Phibar {}'.format(sess.run(srod.dbg_Phibar, feed_dict=inputdict)))
-            # print('roots2 {}'.format(sess.run(srod.dbg_roots2, feed_dict=inputdict)))
-            # print('s and t {}'.format(sess.run([srod.dbg_s, srod.dbg_t], feed_dict=inputdict)))
+            print('CVX Location {}'.format(cvx_loc))
+            if not false_positive:
+                print('abcd {}'.format(sess.run([srod.dbg_a, srod.dbg_b, srod.dbg_c, srod.dbg_d], feed_dict=inputdict)))
+                print('p {}'.format(sess.run(srod.dbg_p, feed_dict=inputdict)))
+                print('q {}'.format(sess.run(srod.dbg_q, feed_dict=inputdict)))
+                print('single real roots {}'.format(sess.run(srod.dbg_signleroots, feed_dict=inputdict)))
+                print('    Abar {}'.format(sess.run(srod.dbg_Abar, feed_dict=inputdict)))
+                print('    Phibar {}'.format(sess.run(srod.dbg_Phibar, feed_dict=inputdict)))
+                print("triple real roots\n")
+                print("\tA {}".format(sess.run(srod.dbg_A, feed_dict=inputdict)))
+                print("\tPhi {}".format(sess.run(srod.dbg_Phi, feed_dict=inputdict)))
+                print("\tB {}".format(sess.run(srod.dbg_B, feed_dict=inputdict)))
+                print('tri real root1 {}'.format(sess.run(srod.dbg_triroots1, feed_dict=inputdict)))
+                print('tri real root2 {}'.format(sess.run(srod.dbg_triroots2, feed_dict=inputdict)))
+                print('tri real root3 {}'.format(sess.run(srod.dbg_triroots3, feed_dict=inputdict)))
+                print('quadratic real roots1 {}'.format(sess.run(srod.dbg_quadroots1, feed_dict=inputdict)))
+                print('quadratic real roots2 {}'.format(sess.run(srod.dbg_quadroots2, feed_dict=inputdict)))
+                # print('roots2 {}'.format(sess.run(srod.dbg_roots2, feed_dict=inputdict)))
+                print('s and t {}'.format(sess.run([srod.dbg_s, srod.dbg_t], feed_dict=inputdict)))
+                print('linear roots {}'.format(sess.run(srod.dbg_linroot, feed_dict=inputdict)))
+                print('linear valid {}'.format(sess.run(srod.dbg_linvalid, feed_dict=inputdict)))
+                print('linear sgood {}'.format(sess.run(srod.dbg_sgood, feed_dict=inputdict)))
+                print('linear tgood {}'.format(sess.run(srod.dbg_tgood, feed_dict=inputdict)))
+                print('linear taugood {}'.format(sess.run(srod.dbg_taugood, feed_dict=inputdict)))
+                print('linear rxsnz {}'.format(sess.run(srod.dbg_rxsnz, feed_dict=inputdict)))
+                print('linear (q-p)xr {}'.format(sess.run(srod.dbg_q_pxr, feed_dict=inputdict)))
+            else:
+                sel=cvx_loc[0]
+                a,b,c,d = sess.run([srod.dbg_a, srod.dbg_b, srod.dbg_c, srod.dbg_d], feed_dict=inputdict)
+                rxs = sess.run(srod.dbg_rxs, feed_dict=inputdict)
+                qroots1 = sess.run(srod.dbg_quadroots1, feed_dict=inputdict)
+                qroots2 = sess.run(srod.dbg_quadroots2, feed_dict=inputdict)
+                s,t = sess.run([srod.dbg_s, srod.dbg_t], feed_dict=inputdict)
+                lroots = sess.run(srod.dbg_linroot, feed_dict=inputdict)
+                linvalid = sess.run(srod.dbg_linvalid, feed_dict=inputdict)
+                print("abcd {}".format([a[sel],b[sel],c[sel],d[sel]]))
+                print("qroot1 {}".format(qroots1[sel]))
+                print("qroot2 {}".format(qroots2[sel]))
+                print("rxs {}".format(rxs[sel]))
+                print("s,t {}{}".format(s[sel], t[sel]))
+                print("lroot {}".format(lroots[sel]))
+                print("lvalid {}".format(linvalid[sel]))
+
             '''
-            s=18
             # print(np.array(sess.run(srod.faceconvexity, feed_dict=inputdict))[:, s])
             print('cancollision {}'.format(cancol[s]))
             print('SV1 {}'.format(sv1[s]))
@@ -317,6 +359,35 @@ def run_test9():
 def run_test10():
     check_failure([141,142,143], 'testdata_ccd7_rccd2')
 
+def run_test11():
+    check_failure([330,331,332], 'testdata_ccd7_rccd3')
+
+def run_test12():
+    check_failure([285,286,287], 'testdata_ccd7_rccd4')
+
+def run_test13():
+    check_failure([121,122,123], 'testdata_ccd7_rccd5')
+    check_failure([152, 153], 'testdata_ccd7_rccd5')
+
+def run_test14():
+    check_failure([51,52], 'testdata_ccd6_rccd', 0.01)
+
+def run_test15():
+    check_failure([51,52], 'testdata_ccd6_rccd', 0.15)
+
+def run_test16():
+    ''' False positives, expecting no collisions '''
+    check_failure([52,53], 'testdata_ccd6_rccd_fp', 0.15, false_positive=True)
+
+def run_test17():
+    check_failure([80,81,82], 'testdata_ccd6_rccd2', 0.0025)
+
+def run_test18():
+    check_failure([110,111,112], 'testdata_ccd6_rccd2', 0.0025)
+
+def run_test19():
+    check_failure([110,111,112], 'testdata_ccd6_rccd3', 0.0025)
+
 def run():
     run_test0()
     run_test1()
@@ -328,6 +399,15 @@ def run():
     run_test7()
     run_test8()
     run_test9()
+    run_test10()
+    run_test11()
+    run_test12()
+    run_test13()
+    run_test14()
+    run_test15()
+    run_test16()
+    run_test17()
+    run_test18()
 
 if __name__ == '__main__':
-    run_test10()
+    run_test19()

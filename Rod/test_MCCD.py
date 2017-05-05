@@ -352,7 +352,7 @@ def run_test6():
     icond.constraint_tolerance = 5 # low-stiffness rods
     icond.anchor_stiffness = 1e3 # but we need maintain the anchor constrants
     icond.t = 0.0
-    icond.ccd_threshold = 0.5/h
+    icond.ccd_threshold = 0.15/h
     def DualRotator(h, icond):
         #icond.sparse_anchor_values[2, :] = np.array([math.cos(icond.t), math.sin(icond.t), 5.0], dtype=np.float32)
         icond.sparse_anchor_values = np.array([
@@ -415,7 +415,7 @@ def run_test7():
     icond.alpha = 0.5
     icond.beta = 0.05
     icond.t = 0.0
-    icond.ccd_threshold = 5.0 / h
+    icond.ccd_threshold = 2.0 / h
     icond.constraint_tolerance = 1e-5 * n * 2 # mid-stiffness rods
     icond.anchor_stiffness = 1e3 # maintain the anchor constrants
     icond.sparse_anchor_indices = np.array([
@@ -439,7 +439,7 @@ def run_test8():
     rho = 1.0
     height = 2.0
 
-    delta = 0.0 #-1.6
+    delta = 0.6 #-1.6
     roda_xs = helper.create_string(np.array([-1+delta,0,0]), np.array([1 + delta,0,0]), n)
     rodb_xs = helper.create_string(np.array([0,-1,height]), np.array([0,1,height]), n)
     rods_xs = np.array([roda_xs, rodb_xs])
@@ -487,4 +487,4 @@ def run():
     run_test8()
 
 if __name__ == '__main__':
-    run_test7()
+    run_test6()

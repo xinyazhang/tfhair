@@ -29,6 +29,9 @@ def _dot(tensor1, tensor2, dim=None, keep_dims=False):
         dim = _lastdim(tensor1)
     return tf.reduce_sum(tf.multiply(tensor1, tensor2), dim, keep_dims=keep_dims)
 
+def _sqnorm(tensor, dim=None, keep_dims=False):
+    return _dot(tensor, tensor, dim, keep_dims)
+
 def _trimslices(tensor, dim = None, margins = [1, 1]):
     if dim == None:
         dim = _lastdim(tensor) - 1
@@ -67,6 +70,12 @@ def _pick_segment_from_rods(tensor, segid):
     rodsseg = tf.slice(tensor, start, size)
     dshape = tf.shape(rodsseg)
     return tf.reshape(rodsseg, shape=[dshape[0], dshape[2]])
+
+def _sinh(tensor):
+    return (tf.exp(tensor) - tf.exp(-tensor)) / 2.0
+
+def _asinh(tensor):
+    return tf.log(tensor + tf.sqrt(tensor * tensor + 1))
 
 def TFGetEdgeVector(xs):
     x_i_1, x_i = _diffslices(xs)
@@ -228,6 +237,113 @@ def TFConvexityByList(tensormat):
     return convexity, faceconvexity, accumdots # FIXME: This is for debug
     return convexity
 
+def TFRodCCD_Select(crod, nrod, SelS):
+    Q_sv, Q_ev = TFRodXSel(crod.xs, SelS)
+    nQ_sv, nQ_ev = TFRodXSel(nrod.xs, SelS)
+    Qdot_sv = nQ_sv - Q_sv
+    Qdot_ev = nQ_ev - Q_ev
+    return Q_sv, Q_ev, Qdot_sv, Qdot_ev
+
+def _tri(c, a, b):
+    '''
+    Returns c . (a x b)
+    '''
+    return _dot(c, tf.cross(a,b), keep_dims=True)
+
+def _roots_in_range(roots, minimal=0.0, maximal=1.0):
+    return tf.logical_and(tf.less_equal(roots, maximal), tf.greater_equal(roots, minimal))
+
+def _clamp_roots(roots):
+    valids = tf.logical_and(tf.less_equal(roots, 1.0), tf.greater_equal(roots, 0.0))
+    fpbool = tf.to_float(valids)
+    return roots * fpbool - (1.0 - fpbool) * 10.0
+
+def TFRod_RealCCD(crod, nrod, srod, ASelS, BSelS):
+    '''
+    Q_a_sv, Q_a_ev: A rod Starting Vertex and Ending Vertex
+    Qdot_a_sv, Qdot_a_ev: Displacement b/w Q and nQ
+    '''
+    Q_a_sv, Q_a_ev, Qdot_a_sv, Qdot_a_ev = TFRodCCD_Select(crod, nrod, ASelS)
+    Q_b_sv, Q_b_ev, Qdot_b_sv, Qdot_b_ev = TFRodCCD_Select(crod, nrod, BSelS)
+    p0 = Q_a_ev - Q_a_sv
+    v0 = Qdot_a_ev - Qdot_a_sv
+    p1 = Q_b_ev - Q_a_sv
+    v1 = Qdot_b_ev - Qdot_a_sv
+    p2 = Q_b_sv - Q_a_sv
+    v2 = Qdot_b_sv - Qdot_a_sv
+    '''
+    a x^3 + b x^2 + c x + d = 0
+    '''
+    d = _tri(p2, p0, p1)
+    c = _tri(p2, p0, v1) + _tri(p2, v0, p1) + _tri(v2, p0, p1)
+    b = _tri(p2, v0, v1) + _tri(v2, p0, v1) + _tri(v2, v0, p1)
+    a = _tri(v2, v0, v1)
+
+    def _within1_from_tau(a, b, c):
+        axb = tf.cross(a,b)
+        sqn = _sqnorm(axb, keep_dims=True)
+        s = _dot(tf.cross(c,b), axb, keep_dims=True) / sqn
+        sgood = _roots_in_range(s)
+        t = _dot(tf.cross(c,a), axb, keep_dims=True) / sqn
+        tgood = _roots_in_range(t)
+        # print(axb.get_shape())
+        # print(sqn.get_shape())
+        # print(s.get_shape())
+        # print(t.get_shape())
+        return tf.logical_and(sgood, tgood)
+
+    def _valid_from_tau(taus):
+        p = Q_a_sv + taus * Qdot_a_sv
+        r = Q_a_ev + taus * Qdot_a_ev - p
+        q = Q_b_sv + taus * Qdot_b_sv
+        s = Q_b_ev + taus * Qdot_b_ev - q
+        t = q - p
+        rxs = tf.cross(r, s)
+        nz = tf.greater(_sqnorm(rxs, keep_dims=True), _epsilon)
+        nz = tf.logical_and(_roots_in_range(taus), nz)
+        return tf.logical_and(nz, tf.where(nz, _within1_from_tau(r, s, t), nz))
+
+    def _valid_quadratic_roots(a,b,c):
+        det = b*b - 4 * a * c
+        def _first_valid_det_ge_0(a,b,c,det):
+            sqrtdet = tf.sqrt(det)
+            roots1 = _clamp_roots((-b+sqrtdet)/(2*a))
+            roots2 = _clamp_roots((-b-sqrtdet)/(2*a))
+            # print(roots1.get_shape())
+            # print(roots2.get_shape())
+            return tf.logical_or(_valid_from_tau(roots1), _valid_from_tau(roots2))
+        return tf.where(tf.greater_equal(det, 0.0),
+                _first_valid_det_ge_0(a,b,c,det),
+                tf.less(det, 0.0))
+
+    def _valid_cubic_tri_roots(p, q, a, b):
+        A = 2 * tf.sqrt(-p/3)
+        Phi = tf.acos(3*q/(A*p))
+        B = - b/(3*a)
+        roots1 = A*tf.cos(1/3.0 * Phi)+B
+        roots2 = A*tf.cos(1/3.0 * (Phi + 2.0 * math.pi))+B
+        roots3 = A*tf.cos(1/3.0 * (Phi + 4.0 * math.pi))+B
+        return tf.logical_or(tf.logical_or(_valid_from_tau(roots1), _valid_from_tau(roots2)), _valid_from_tau(roots3))
+
+    def _valid_cubic_single_root(p, q):
+        Abar = 2 * tf.sqrt(p/3)
+        Phibar = _asinh(3 * q / (Abar * p))
+        roots1 = -2*tf.sqrt(p/3)*_sinh(Phibar/3.0)
+        return _valid_from_tau(roots1)
+
+    def _valid_cubic_roots(a, b, c, d):
+        p = (3 * a * c - b * b)/(3 * a * a)
+        q = (2 * b * b * b - 9 * a * b * c + 27 * a * a * d)/(27 * a * a * a)
+        return tf.where(tf.less_equal(p, 0.0),
+                _valid_cubic_tri_roots(p, q, a, b),
+                _valid_cubic_single_root(p, q))
+
+    cancoltv = tf.where(tf.abs(a) > _epsilon, _valid_cubic_roots(a,b,c,d), _valid_quadratic_roots(b,c,d))
+    # return tf.unstack(cancoltv, 1, axis=1)
+    # return tf.shape(cancoltv)
+    # return cancoltv
+    return tf.reshape(cancoltv, [tf.shape(cancoltv)[0]])
+
 def TFRodCCDExtended_signed_volume_based(crod, nrod, srod, ASelS, BSelS):
     cvolumes = TFSignedVolumes(crod.xs, ASelS, BSelS)
     nvolumes = TFSignedVolumes(nrod.xs, ASelS, BSelS)
@@ -291,7 +407,8 @@ def TFRodCCDExtended_convexity_based(crod, nrod, srod, ASelS, BSelS):
 
 def TFRodCCDExtended(crod, nrod, srod, ASelS, BSelS):
     # return TFRodCCDExtended_signed_volume_based(crod, nrod, srod, ASelS, BSelS)
-    return TFRodCCDExtended_convexity_based(crod, nrod, srod, ASelS, BSelS)
+    # return TFRodCCDExtended_convexity_based(crod, nrod, srod, ASelS, BSelS)
+    return TFRod_RealCCD(crod, nrod, srod, ASelS, BSelS)
 
 def TFRodCCD(crod, nrod, srod, ASelS, BSelS):
     a_list = TFRodCCDExtended(crod, nrod, srod, ASelS, BSelS)
@@ -299,6 +416,7 @@ def TFRodCCD(crod, nrod, srod, ASelS, BSelS):
 
 def ConvexityFilter(SelS_in, convexity):
     return tf.gather_nd(SelS_in, tf.where(tf.equal(convexity, True)))
+    #return tf.shape(convexity), tf.shape(SelS_in)
 
 def TFRodCollisionImpulse(h, crod, nrod, srod, ASelS_in, BSelS_in, convexity = None):
     gcxs_k = None
@@ -586,7 +704,7 @@ class ElasticRodS:
         nrod.InitTF(pseudonrod)
         return nrod
 
-    def CalcPenaltyRelaxationTF(self, h, learning_rate=1e-5):
+    def CalcPenaltyRelaxationTF(self, h, learning_rate=1e-4):
         xs = tf.Variable(np.zeros(shape=self.xs.get_shape().as_list(), dtype=np.float32), name='xs')
         relaxxdots = self.xdots + (xs - self.xs) / h
         relaxrod = ElasticRodS(
@@ -790,8 +908,8 @@ class ElasticRodS:
         # print('convexity list {}'.format(cvx))
         # print(sess.run(self.impulse_with_sels, feed_dict=inputdict))
         print('collision {}'.format(sels_results))
-        print('impulse {}'.format(impulse_results))
-        print('xs after impulse {}'.format(sess.run(self.xs, feed_dict=inputdict)))
+        # print('impulse {}'.format(impulse_results))
+        # print('xs after impulse {}'.format(sess.run(self.xs, feed_dict=inputdict)))
         return len(sels_results) == 0
         # return True
 

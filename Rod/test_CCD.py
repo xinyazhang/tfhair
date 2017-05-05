@@ -263,13 +263,14 @@ def check_failure(frames, path):
                     srod.xs:cpos1,
                     }
             cancol = sess.run(dpairs, feed_dict=inputdict)
+            cvx = sess.run(convexity, feed_dict=inputdict)
             col = sess.run(collisions, feed_dict=inputdict)
             sv1,sv2 = sess.run([sv1op,sv2op], feed_dict=inputdict)
-            print('frame {}, cancollision {} collision {}'.format(frames[f], cancol, col))
+            print("frame {}\ncancollision {}\nconvexity {}\ncollision {}".format(frames[f], cancol, cvx, col))
             print('SV1 {}'.format(sv1))
             print('SV2 {}'.format(sv2))
             s=18
-            print(np.array(sess.run(srod.faceconvexity, feed_dict=inputdict))[:, s])
+            # print(np.array(sess.run(srod.faceconvexity, feed_dict=inputdict))[:, s])
             print('cancollision {}'.format(cancol[s]))
             print('SV1 {}'.format(sv1[s]))
             print('SV2 {}'.format(sv2[s]))

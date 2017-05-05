@@ -14,7 +14,7 @@ This is a very flexible class. It may store:
     3. The placeholders and tensors to optimizing computational graph.
 '''
 
-_epsilon = 1e-7
+_epsilon = 1e-5
 _default_rho = 0.1
 _stiff = 1e7
 
@@ -242,7 +242,7 @@ def TFRodCCD_Select(crod, nrod, SelS):
     nQ_sv, nQ_ev = TFRodXSel(nrod.xs, SelS)
     Qdot_sv = nQ_sv - Q_sv
     Qdot_ev = nQ_ev - Q_ev
-    return Q_sv, Q_ev, Qdot_sv, Qdot_ev
+    return tf.to_double(Q_sv), tf.to_double(Q_ev), tf.to_double(Qdot_sv), tf.to_double(Qdot_ev)
 
 def _tri(c, a, b):
     '''
@@ -308,7 +308,7 @@ def TFRod_RealCCD(crod, nrod, srod, ASelS, BSelS):
             dbg.dbg_taus = taus
         return tf.logical_and(nz, tf.where(nz, _within1_from_tau(r, s, t, dbg), nz))
 
-    def _valid_quadratic_roots(a,b,c):
+    def _valid_quadratic_roots(a,b,c, dbg=None):
         det = b*b - 4 * a * c
         def _first_valid_det_ge_0(a,b,c,det):
             sqrtdet = tf.sqrt(det)
@@ -316,6 +316,9 @@ def TFRod_RealCCD(crod, nrod, srod, ASelS, BSelS):
             #roots2 = _clamp_roots((-b-sqrtdet)/(2*a))
             roots1 = (-b+sqrtdet)/(2*a)
             roots2 = (-b-sqrtdet)/(2*a)
+            if dbg is not None:
+                dbg.dbg_quadroots1 = roots1
+                dbg.dbg_quadroots2 = roots2
             # print(roots1.get_shape())
             # print(roots2.get_shape())
             return tf.logical_or(_valid_from_tau(roots1), _valid_from_tau(roots2))
@@ -323,20 +326,25 @@ def TFRod_RealCCD(crod, nrod, srod, ASelS, BSelS):
                 _first_valid_det_ge_0(a,b,c,det),
                 tf.less(det, 0.0))
 
-    def _valid_linear_roots(a,b):
+    def _valid_linear_roots(a,b, dbg=None):
+        if dbg is not None:
+            dbg.dbg_linroot = -b/a
         return tf.where(tf.less_equal(tf.abs(a), _epsilon), tf.less_equal(tf.abs(b), _epsilon), _valid_from_tau(-b/a))
 
-    def _valid_quadratic_or_linear_roots(a,b,c):
-        return tf.where(tf.less_equal(tf.abs(a), _epsilon), _valid_linear_roots(b,c), _valid_quadratic_roots(a,b,c))
+    def _valid_quadratic_or_linear_roots(a,b,c, dbg=None):
+        return tf.where(tf.less_equal(tf.abs(a), _epsilon), _valid_linear_roots(b,c, dbg), _valid_quadratic_roots(a,b,c, dbg))
 
     def _valid_cubic_tri_roots(p, q, a, b, dbg=None):
         A = 2 * tf.sqrt(-p/3)
         Phi = tf.acos(3*q/(A*p))
         B = - b/(3*a)
-        roots1 = A*tf.cos(1/3.0 * Phi)+B - b/(3*a)
-        roots2 = A*tf.cos(1/3.0 * (Phi + 2.0 * math.pi))+B - b/(3*a)
-        roots3 = A*tf.cos(1/3.0 * (Phi + 4.0 * math.pi))+B - b/(3*a)
+        roots1 = A*tf.cos(Phi/3)+B
+        roots2 = A*tf.cos((Phi + 2.0 * math.pi)/3)+B
+        roots3 = A*tf.cos((Phi + 4.0 * math.pi)/3)+B
         if dbg is not None:
+            dbg.dbg_A = A
+            dbg.dbg_Phi = Phi
+            dbg.dbg_B = B
             dbg.dbg_triroots1 = roots1
             dbg.dbg_triroots2 = roots2
             dbg.dbg_triroots3 = roots3
@@ -362,7 +370,9 @@ def TFRod_RealCCD(crod, nrod, srod, ASelS, BSelS):
                 _valid_cubic_tri_roots(p, q, a, b, dbg),
                 _valid_cubic_single_root(p, q, a, b, dbg))
 
-    cancoltv = tf.where(tf.abs(a) > _epsilon, _valid_cubic_roots(a,b,c,d,srod), _valid_quadratic_or_linear_roots(b,c,d))
+    cancoltv = tf.where(tf.abs(a) > _epsilon,\
+            _valid_cubic_roots(a,b,c,d,srod),\
+            _valid_quadratic_or_linear_roots(b,c,d,srod))
     srod.dbg_a = a
     srod.dbg_b = b
     srod.dbg_c = c

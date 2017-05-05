@@ -322,7 +322,7 @@ def run_test6():
     '''
     Test 6: Twisting strings
     '''
-    n = 60
+    n = 32
     h = 1.0/1024.0
     rho = 1.0
 
@@ -347,12 +347,12 @@ def run_test6():
             omegas=rods_thetas,
             initd1=initd1
             )
-    icond.alpha = 0.05
+    icond.alpha = 0.00125
     icond.beta = 0.05
     icond.constraint_tolerance = 5 # low-stiffness rods
     icond.anchor_stiffness = 1e3 # but we need maintain the anchor constrants
     icond.t = 0.0
-    icond.ccd_threshold = 0.15/h
+    icond.ccd_threshold = 0.05/h
     def DualRotator(h, icond):
         #icond.sparse_anchor_values[2, :] = np.array([math.cos(icond.t), math.sin(icond.t), 5.0], dtype=np.float32)
         icond.sparse_anchor_values = np.array([

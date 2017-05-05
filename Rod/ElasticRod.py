@@ -477,24 +477,31 @@ def TFRodCollisionImpulse(h, crod, nrod, srod, ASelS_in, BSelS_in, convexity = N
     ASelS = ConvexityFilter(ASelS_in, convexity)
     BSelS = ConvexityFilter(BSelS_in, convexity)
 
-    ''' Gathered Current Xs '''
+    ''' Gathered Current Xs for A '''
     gcxs_k_1, gcxs_k = TFRodXSel(crod.xs, ASelS)
-    ''' Gathered Next Xs '''
+    ''' Gathered Next Xs for A '''
     gnxs_k_1, gnxs_k = TFRodXSel(nrod.xs, ASelS)
 
-    gqdots = ((gnxs_k_1 - gcxs_k_1) + (gnxs_k - gcxs_k)) / (2 * h)
+    gqdots = ((gnxs_k_1 - gcxs_k_1) + (gnxs_k - gcxs_k)) / 2.0
+
+    ''' Gathered Current Xs for B '''
+    gcxs_k_1_b, gcxs_k_b = TFRodXSel(crod.xs, BSelS)
+    ''' Gathered Next Xs for B '''
+    gnxs_k_1_b, gnxs_k_b = TFRodXSel(nrod.xs, BSelS)
     # return tf.shape(gnxs_k_1)
     # return tf.shape(gqdots)
-    grqdots = TFRodXDotSel(crod.xdots, BSelS)
+    grqdots = ((gnxs_k_1_b - gcxs_k_1_b) + (gnxs_k_b - gcxs_k_b)) / 2.0
     relqdots = gqdots - grqdots
     gtans = tf.gather_nd(srod.tans, BSelS)
     # return relqdots
     # return gtans
     #gtans.set_shape([None, 3])
+
+    # gnormals = tf.cross(gtans, tf.cross(gtans, relqdots))
     gnormals = tf.cross(gtans, tf.cross(gtans, relqdots))
     gsegmass = _paddim(tf.gather_nd(nrod.restl * nrod.rho, ASelS))
     # print('gmass: {}'.format(gmass))
-    return 0.5 * h * gnormals * gsegmass, ASelS, BSelS
+    return gnormals * gsegmass, ASelS, BSelS
 
 def TFApplyImpulse(h, rods, ASelS, BSelS, impulse, factor):
     ASelX = ASelS
@@ -796,7 +803,7 @@ class ElasticRodS:
         h = ccd_h
         inputdict = helper.create_dict([irod], [icond])
         sess.run(self.init_op, feed_dict=inputdict, options=options, run_metadata=run_metadata)
-        CH = 1.5
+        CH = 1.0
         for C in range(100):
         #while True:
             #init_xs = sess.run(self.init_xs, feed_dict=inputdict)
@@ -817,6 +824,8 @@ class ElasticRodS:
                     E = sess.run(self.loss, feed_dict=inputdict)
                     print('loss: {}'.format(E))
                 '''
+            if math.fabs(E) > 1e3:
+                    print('Exploded with loss: {}'.format(E))
             # print('Leaving at Iter {} with Energy {} tolerance {}'.format(leaving_iter, E, self.constraint_tolerance))
             if self.obstacle_impulse_op is not None:
                 obstacle_impulse = sess.run(self.obstacle_impulse_op, feed_dict=inputdict, options=options, run_metadata=run_metadata)
@@ -828,15 +837,20 @@ class ElasticRodS:
                 # CH += 0.1
                 if leaving:
                     break
-                AdaptiveCH = CH
-                '''
+                AdaptiveCH = 0.1
+                AccumulatedCH = CH
+                NIter = 0
                 while not self.DetectAndApplyImpulse(sess, h, ccddict):
-                    AdaptiveCH *= 1.2
-                    #AdaptiveCH += 0.2
+                    # AdaptiveCH *= 1.1
+                    AccumulatedCH += AdaptiveCH
+                    AdaptiveCH += 0.1
                     ccddict.update({self.ccd_factor:AdaptiveCH})
-                    print('AdaptiveCH {}'.format(AdaptiveCH))
+                    print("Applying AdaptiveCH {}".format(AdaptiveCH))
+                    NIter += 1
+                    #if NIter > 100:
+                    #    break
                     pass
-                '''
+                print('Accumulated AdaptiveCH {}'.format(AccumulatedCH))
             else:
                 break
         # print "loss:", E
@@ -961,8 +975,9 @@ class ElasticRodS:
         # print('detected collision {}'.format(np.concatenate([sela_results, selb_results], axis=1)))
         # print('convexity list {}'.format(cvx))
         # print(sess.run(self.impulse_with_sels, feed_dict=inputdict))
-        # print('collision {}'.format(sels_results))
-        # print('impulse {}'.format(impulse_results))
+        if len(sels_results) != 0:
+            print('impulse {}'.format(impulse_results))
+            print('collision {}'.format(sels_results))
         # print('xs after impulse {}'.format(sess.run(self.xs, feed_dict=inputdict)))
         return len(sels_results) == 0
         # return True

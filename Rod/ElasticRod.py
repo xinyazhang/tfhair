@@ -442,7 +442,7 @@ def TFRodCollisionImpulse(h, crod, nrod, srod, ASelS_in, BSelS_in, convexity = N
     # return gtans
     #gtans.set_shape([None, 3])
     gnormals = tf.cross(gtans, tf.cross(gtans, relqdots))
-    gsegmass = _paddim(tf.gather_nd(nrod.restl, ASelS))
+    gsegmass = _paddim(tf.gather_nd(nrod.restl * nrod.rho, ASelS))
     # print('gmass: {}'.format(gmass))
     return 0.5 * h * gnormals * gsegmass, ASelS, BSelS
 
@@ -872,7 +872,7 @@ class ElasticRodS:
         xdot_i_1, xdot_i = _diffslices(xdot, 0)
         avexdot = 0.5 * (xdot_i_1 + xdot_i)
         sqnorm = tf.reduce_sum(tf.multiply(avexdot, avexdot), 1, keep_dims=False)
-        return 0.5 * tf.reduce_sum(rod.restl * sqnorm)
+        return 0.5 * tf.reduce_sum(rod.restl * rod.rho * sqnorm)
 
     def CreateCCDNode(self, irod, h, thresholds=None):
         midpoints = self.GetMidPointsTF()
@@ -942,4 +942,4 @@ def TFKineticD(rod):
     xdot_i_1, xdot_i = _diffslices(xdot, 0)
     avexdot = 0.5 * (xdot_i_1 + xdot_i)
     sqnorm = tf.reduce_sum(tf.multiply(avexdot, avexdot), 1, keep_dims=False)
-    return 0.5 * tf.reduce_sum(rod.restl * sqnorm)
+    return 0.5 * tf.reduce_sum(rod.restl * rod.rho * sqnorm)

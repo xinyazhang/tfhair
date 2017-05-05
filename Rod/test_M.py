@@ -391,9 +391,9 @@ def run_test9():
 @test
 def run_test10():
     '''
-    Test 10: ahoge, hair with strong bending coefficient,
-    dangling effect
-    This requires 2000 iterations
+    Test 10: ahoge: top hair with strong bending
+    coefficient, dangling effect
+    Sometimes it requires 2000 iterations
     '''
     centers = [ np.array([0.0, 0.0, 0.0]) ]
     radii = [ np.array([1.0]) ]
@@ -483,8 +483,13 @@ def run_test12():
     Test 12: twisting with anchor points, version 2
     '''
 
-    iterator1 = xrange(-1,0)
-    iterator2 = xrange(0,2)
+    """
+    works only for half_segs=1,2
+    fails to correctly propagate on the third segment
+    """
+    half_segs = 3
+    iterator1 = xrange(-half_segs,0)
+    iterator2 = xrange(0,half_segs+1)
     n1 = len(list(iterator1))
     n2 = len(list(iterator2))
     n = n1 + n2 - 1
@@ -534,7 +539,7 @@ if __name__ == '__main__':
     options, _ = parse_args()
 
     # select tests to run
-    if options.tests is None or options.tests is "all":
+    if options.tests is None or options.tests == "all":
         tests_to_run = sorted(all_tests.keys(), key=lambda x: int(filter(str.isdigit, x)))
     else:
         tests_to_run = map(lambda x : "run_test{number}".format(number=x), options.tests.split(','))

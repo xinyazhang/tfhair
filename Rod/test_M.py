@@ -2,6 +2,8 @@
 '''
 Test for Motions
 '''
+import os
+os.environ['TF_CPP_MIN_LOG_LEVEL']='3'  # suppress tensorflow warnings
 
 import numpy as np
 from ElasticRod import *
@@ -11,6 +13,9 @@ import tensorflow as tf
 import math
 from math import pi
 import progressbar
+import optparse
+
+all_tests = dict()
 
 def run_with_bc(n, h, rho, icond, path, icond_updater=None, obstacle=None):
     '''
@@ -65,6 +70,14 @@ def run_with_bc(n, h, rho, icond, path, icond_updater=None, obstacle=None):
 
     saver.close()
 
+def test(test_func):
+    def test_wrapper():
+        print "=> Running {test}".format(test=test_func.__name__)
+        test_func()
+    all_tests[test_func.__name__] = test_wrapper
+    return test_wrapper
+
+@test
 def run_test0():
     '''
     Test 0: bending force only
@@ -93,6 +106,7 @@ def run_test0():
             )
     run_with_bc(n, h, rho, icond, '/tmp/tftest0')
 
+@test
 def run_test1():
     '''
     Test 1: bending force only
@@ -123,6 +137,7 @@ def run_test1():
             )
     run_with_bc(n, h, rho, icond, '/tmp/tftest1')
 
+@test
 def run_test2():
     '''
     Test 2: constant velocity
@@ -153,6 +168,7 @@ def run_test2():
             )
     run_with_bc(n, h, rho, icond, '/tmp/tftest2')
 
+@test
 def run_test3():
     '''
     Test 3: twisting
@@ -183,6 +199,7 @@ def run_test3():
             )
     run_with_bc(n, h, rho, icond, '/tmp/tftest3')
 
+@test
 def run_test4():
     '''
     Test 4: twisting with bending
@@ -211,6 +228,7 @@ def run_test4():
             )
     run_with_bc(n, h, rho, icond, '/tmp/tftest4')
 
+@test
 def run_test5():
     '''
     Test 5: Constraints
@@ -245,6 +263,7 @@ def run_test5():
             )
     run_with_bc(n, h, rho, icond, '/tmp/tftest5')
 
+@test
 def run_test6():
     '''
     Test 6: bending force with gravity
@@ -277,10 +296,7 @@ def run_test6():
     icond.floor_z = -5.0
     run_with_bc(n, h, rho, icond, '/tmp/tftest6')
 
-def SinAnchor(h, icond):
-    icond.anchors = np.array([0.0, math.sin(icond.t), 0.0])
-    icond.t += h * 8
-
+@test
 def run_test7():
     '''
     Test 7: anchors
@@ -303,8 +319,14 @@ def run_test7():
     icond.t = 0.0
     icond.alpha = 0.01
     icond.beta = 0.01
+
+    def SinAnchor(h, icond):
+        icond.anchors = np.array([0.0, math.sin(icond.t), 0.0])
+        icond.t += h * 8
+
     run_with_bc(n, h, rho, icond, '/tmp/tftest7', icond_updater=SinAnchor)
 
+@test
 def run_test8():
     '''
     Test 8: collision with unit sphere
@@ -332,9 +354,7 @@ def run_test8():
 
     run_with_bc(n, h, rho, icond, '/tmp/tftest8', obstacle=obstacle)
 
-def FixedAnchor(h, icond):
-    icond.anchors = np.array([0.0, 0.0, 1.0])
-
+@test
 def run_test9():
     '''
     Test 9: collision with anchors on unit sphere
@@ -363,8 +383,12 @@ def run_test9():
     icond.anchors = np.array([0,0,1])
     icond.g = 9.8
 
+    def FixedAnchor(h, icond):
+        icond.anchors = np.array([0.0, 0.0, 1.0])
+
     run_with_bc(n, h, rho, icond, '/tmp/tftest9', icond_updater=FixedAnchor, obstacle=obstacle)
 
+@test
 def run_test10():
     '''
     Test 10: ahoge, hair with strong bending coefficient,
@@ -411,6 +435,7 @@ def run_test10():
 
     run_with_bc(n, h, rho, icond, '/tmp/tftest10', obstacle=obstacle)
 
+@test
 def run_test11():
     '''
     Test 11: twisting with anchor points
@@ -452,6 +477,7 @@ def run_test11():
     icond.t = 0
     run_with_bc(n, h, rho, icond, '/tmp/tftest11', icond_updater=FixedTwister)
 
+@test
 def run_test12():
     '''
     Test 12: twisting with anchor points, version 2
@@ -498,20 +524,22 @@ def run_test12():
     icond.t = 0
     run_with_bc(n, h, rho, icond, '/tmp/tftest12', icond_updater=FixedTwisterII)
 
-def run():
-    run_test0()
-    run_test1()
-    run_test2()
-    run_test3()
-    run_test4()
-    run_test5()
-    run_test6()
-    run_test7()
-    run_test8()
-    run_test9()
-    run_test10()
-    run_test11()
-    run_test12()
+def parse_args():
+    parser = optparse.OptionParser()
+    parser.add_option("", "--tests", dest="tests",
+            default=None, help="specify tests to run, separated by comma ','")
+    return parser.parse_args()
 
 if __name__ == '__main__':
-    run()
+    options, _ = parse_args()
+
+    # select tests to run
+    if options.tests is None or options.tests is "all":
+        tests_to_run = sorted(all_tests.keys(), key=lambda x: int(filter(str.isdigit, x)))
+    else:
+        tests_to_run = map(lambda x : "run_test{number}".format(number=x), options.tests.split(','))
+
+    # run tests
+    for func_name in tests_to_run:
+        if func_name in all_tests:
+            all_tests[func_name]()

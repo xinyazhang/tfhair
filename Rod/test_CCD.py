@@ -244,7 +244,7 @@ def check_failure(frames, path):
 
     h = 1.0/1024.0
     n = xsshape[1] - 1
-    dpairs = TFDistanceFilter(h, crod.GetMidPointsTF(), tf.constant(2400.0))
+    dpairs = TFDistanceFilter(h, crod.GetMidPointsTF(), tf.constant(0.1/h))
     sela_gcan = tf.slice(dpairs, [0, 0], [-1, 2])
     selb_gcan = tf.slice(dpairs, [0, 2], [-1, 2])
     sv1op = TFSignedVolumes(crod.xs, sela_gcan, selb_gcan)
@@ -270,9 +270,13 @@ def check_failure(frames, path):
             print('SV1 {}'.format(sv1))
             print('SV2 {}'.format(sv2))
             print('abcd {}'.format(sess.run([srod.dbg_a, srod.dbg_b, srod.dbg_c, srod.dbg_d], feed_dict=inputdict)))
-            print('valid from linear part {}'.format(sess.run(srod.vfl, feed_dict=inputdict)))
-            print('taus {}'.format(sess.run(srod.dbg_taus, feed_dict=inputdict)))
-            print('s and t {}'.format(sess.run([srod.dbg_s, srod.dbg_t], feed_dict=inputdict)))
+            print('p {}'.format(sess.run(srod.dbg_p, feed_dict=inputdict)))
+            print('q {}'.format(sess.run(srod.dbg_q, feed_dict=inputdict)))
+            print('single real roots {}'.format(sess.run(srod.dbg_signleroots, feed_dict=inputdict)))
+            print('    Abar {}'.format(sess.run(srod.dbg_Abar, feed_dict=inputdict)))
+            print('    Phibar {}'.format(sess.run(srod.dbg_Phibar, feed_dict=inputdict)))
+            # print('roots2 {}'.format(sess.run(srod.dbg_roots2, feed_dict=inputdict)))
+            # print('s and t {}'.format(sess.run([srod.dbg_s, srod.dbg_t], feed_dict=inputdict)))
             '''
             s=18
             # print(np.array(sess.run(srod.faceconvexity, feed_dict=inputdict))[:, s])
@@ -306,6 +310,13 @@ def run_test7():
 def run_test8():
     check_failure([140,141,142,143], 'testdata_ccd8_direct')
 
+def run_test9():
+    check_failure([117,118,119], 'testdata_ccd7_rccd')
+    check_failure([123,124,125,126,127], 'testdata_ccd7_rccd')
+
+def run_test10():
+    check_failure([141,142,143], 'testdata_ccd7_rccd2')
+
 def run():
     run_test0()
     run_test1()
@@ -315,6 +326,8 @@ def run():
     run_test5()
     run_test6()
     run_test7()
+    run_test8()
+    run_test9()
 
 if __name__ == '__main__':
-    run_test8()
+    run_test10()

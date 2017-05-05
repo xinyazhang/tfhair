@@ -14,7 +14,7 @@ This is a very flexible class. It may store:
     3. The placeholders and tensors to optimizing computational graph.
 '''
 
-_epsilon = 1e-10
+_epsilon = 1e-7
 _default_rho = 0.1
 _stiff = 1e7
 
@@ -329,34 +329,45 @@ def TFRod_RealCCD(crod, nrod, srod, ASelS, BSelS):
     def _valid_quadratic_or_linear_roots(a,b,c):
         return tf.where(tf.less_equal(tf.abs(a), _epsilon), _valid_linear_roots(b,c), _valid_quadratic_roots(a,b,c))
 
-    def _valid_cubic_tri_roots(p, q, a, b):
+    def _valid_cubic_tri_roots(p, q, a, b, dbg=None):
         A = 2 * tf.sqrt(-p/3)
         Phi = tf.acos(3*q/(A*p))
         B = - b/(3*a)
-        roots1 = A*tf.cos(1/3.0 * Phi)+B
-        roots2 = A*tf.cos(1/3.0 * (Phi + 2.0 * math.pi))+B
-        roots3 = A*tf.cos(1/3.0 * (Phi + 4.0 * math.pi))+B
+        roots1 = A*tf.cos(1/3.0 * Phi)+B - b/(3*a)
+        roots2 = A*tf.cos(1/3.0 * (Phi + 2.0 * math.pi))+B - b/(3*a)
+        roots3 = A*tf.cos(1/3.0 * (Phi + 4.0 * math.pi))+B - b/(3*a)
+        if dbg is not None:
+            dbg.dbg_triroots1 = roots1
+            dbg.dbg_triroots2 = roots2
+            dbg.dbg_triroots3 = roots3
         return tf.logical_or(tf.logical_or(_valid_from_tau(roots1), _valid_from_tau(roots2)), _valid_from_tau(roots3))
 
-    def _valid_cubic_single_root(p, q):
+    def _valid_cubic_single_root(p, q, a, b, dbg=None):
         Abar = 2 * tf.sqrt(p/3)
         Phibar = _asinh(3 * q / (Abar * p))
-        roots1 = -2*tf.sqrt(p/3)*_sinh(Phibar/3.0)
+        roots1 = -2*tf.sqrt(p/3)*_sinh(Phibar/3.0) - b/(3*a)
+        if dbg is not None:
+            dbg.dbg_signleroots = roots1
+            dbg.dbg_Abar = Abar
+            dbg.dbg_Phibar = Phibar
         return _valid_from_tau(roots1)
 
-    def _valid_cubic_roots(a, b, c, d):
+    def _valid_cubic_roots(a, b, c, d, dbg=None):
         p = (3 * a * c - b * b)/(3 * a * a)
         q = (2 * b * b * b - 9 * a * b * c + 27 * a * a * d)/(27 * a * a * a)
+        if dbg is not None:
+            dbg.dbg_p = p
+            dbg.dbg_q = q
         return tf.where(tf.less_equal(p, 0.0),
-                _valid_cubic_tri_roots(p, q, a, b),
-                _valid_cubic_single_root(p, q))
+                _valid_cubic_tri_roots(p, q, a, b, dbg),
+                _valid_cubic_single_root(p, q, a, b, dbg))
 
-    cancoltv = tf.where(tf.abs(a) > _epsilon, _valid_cubic_roots(a,b,c,d), _valid_quadratic_or_linear_roots(b,c,d))
+    cancoltv = tf.where(tf.abs(a) > _epsilon, _valid_cubic_roots(a,b,c,d,srod), _valid_quadratic_or_linear_roots(b,c,d))
     srod.dbg_a = a
     srod.dbg_b = b
     srod.dbg_c = c
     srod.dbg_d = d
-    srod.vfl = _valid_from_tau(d/c, srod)
+    #srod.vfl = _valid_from_tau(d/c, srod)
     # return tf.unstack(cancoltv, 1, axis=1)
     # return tf.shape(cancoltv)
     # return cancoltv
@@ -535,6 +546,7 @@ def TFSegmentVsSegmentDistanceFilterNoInnerCross(h, i, j, xs, sqnxs, thresh, to_
     Arods,Brods = tf.unstack(indices, 2, axis=1)
     # print(Arods)
     '''
+    Disable Self-Colliding Detection
     Only detect collision b/w different rods
     '''
     processed = tf.where(tf.not_equal(Arods, Brods))
@@ -796,12 +808,14 @@ class ElasticRodS:
                 if leaving:
                     break
                 AdaptiveCH = CH
+                '''
                 while not self.DetectAndApplyImpulse(sess, h, ccddict):
-                    #AdaptiveCH *= 1.2
-                    AdaptiveCH += 0.2
+                    AdaptiveCH *= 1.2
+                    #AdaptiveCH += 0.2
                     ccddict.update({self.ccd_factor:AdaptiveCH})
                     print('AdaptiveCH {}'.format(AdaptiveCH))
                     pass
+                '''
             else:
                 break
         # print "loss:", E
@@ -926,7 +940,7 @@ class ElasticRodS:
         # print('detected collision {}'.format(np.concatenate([sela_results, selb_results], axis=1)))
         # print('convexity list {}'.format(cvx))
         # print(sess.run(self.impulse_with_sels, feed_dict=inputdict))
-        print('collision {}'.format(sels_results))
+        # print('collision {}'.format(sels_results))
         # print('impulse {}'.format(impulse_results))
         # print('xs after impulse {}'.format(sess.run(self.xs, feed_dict=inputdict)))
         return len(sels_results) == 0

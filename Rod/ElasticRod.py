@@ -293,6 +293,8 @@ def TFRod_RealCCD(crod, nrod, srod, ASelS, BSelS):
         if dbg is not None:
             dbg.dbg_s = s
             dbg.dbg_t = t
+            dbg.dbg_sgood = sgood
+            dbg.dbg_tgood = tgood
         return tf.logical_and(sgood, tgood)
 
     def _valid_from_tau(taus, dbg=None):
@@ -302,10 +304,15 @@ def TFRod_RealCCD(crod, nrod, srod, ASelS, BSelS):
         s = Q_b_ev + taus * Qdot_b_ev - q
         t = q - p
         rxs = tf.cross(r, s)
-        nz = tf.greater(_sqnorm(rxs, keep_dims=True), _epsilon)
-        nz = tf.logical_and(_roots_in_range(taus), nz)
+        nz = tf.greater(_sqnorm(rxs, keep_dims=True), 0.0)
+        taugood = _roots_in_range(taus)
+        nz = tf.logical_and(taugood, nz)
         if dbg is not None:
             dbg.dbg_taus = taus
+            dbg.dbg_taugood = taugood
+            dbg.dbg_rxs = rxs
+            dbg.dbg_rxsnz = nz
+            dbg.dbg_q_pxr = tf.cross(q - p, r)
         return tf.logical_and(nz, tf.where(nz, _within1_from_tau(r, s, t, dbg), nz))
 
     def _valid_quadratic_roots(a,b,c, dbg=None):
@@ -321,18 +328,22 @@ def TFRod_RealCCD(crod, nrod, srod, ASelS, BSelS):
                 dbg.dbg_quadroots2 = roots2
             # print(roots1.get_shape())
             # print(roots2.get_shape())
-            return tf.logical_or(_valid_from_tau(roots1), _valid_from_tau(roots2))
+            return tf.logical_or(_valid_from_tau(roots1), _valid_from_tau(roots2, dbg))
         return tf.where(tf.greater_equal(det, 0.0),
                 _first_valid_det_ge_0(a,b,c,det),
-                tf.less(det, 0.0))
+                tf.greater_equal(det, 0.0))
 
     def _valid_linear_roots(a,b, dbg=None):
+        vanished = tf.less_equal(tf.abs(a), _epsilon)
+        linvalid = _valid_from_tau(-b/a)
         if dbg is not None:
             dbg.dbg_linroot = -b/a
-        return tf.where(tf.less_equal(tf.abs(a), _epsilon), tf.less_equal(tf.abs(b), _epsilon), _valid_from_tau(-b/a))
+            dbg.dbg_linvalid = linvalid
+        return tf.where(vanished, tf.equal(b, 0.0), linvalid)
 
     def _valid_quadratic_or_linear_roots(a,b,c, dbg=None):
-        return tf.where(tf.less_equal(tf.abs(a), _epsilon), _valid_linear_roots(b,c, dbg), _valid_quadratic_roots(a,b,c, dbg))
+        # return tf.where(tf.less_equal(tf.abs(a), _epsilon * 0.02), _valid_linear_roots(b,c, dbg), _valid_quadratic_roots(a,b,c, dbg))
+        return tf.where(tf.equal(tf.abs(a), 0.0), _valid_linear_roots(b,c, dbg), _valid_quadratic_roots(a,b,c, dbg))
 
     def _valid_cubic_tri_roots(p, q, a, b, dbg=None):
         A = 2 * tf.sqrt(-p/3)

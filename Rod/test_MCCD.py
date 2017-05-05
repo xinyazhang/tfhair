@@ -437,7 +437,7 @@ def run_test8():
     n = 1
     h = 1.0/1024.0
     rho = 1.0
-    height = 5.0
+    height = 2.0
 
     delta = 0.0 #-1.6
     roda_xs = helper.create_string(np.array([-1+delta,0,0]), np.array([1 + delta,0,0]), n)

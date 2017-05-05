@@ -269,6 +269,11 @@ def check_failure(frames, path):
             print("frame {}\ncancollision {}\nconvexity {}\ncollision {}".format(frames[f], cancol, cvx, col))
             print('SV1 {}'.format(sv1))
             print('SV2 {}'.format(sv2))
+            print('abcd {}'.format(sess.run([srod.dbg_a, srod.dbg_b, srod.dbg_c, srod.dbg_d], feed_dict=inputdict)))
+            print('valid from linear part {}'.format(sess.run(srod.vfl, feed_dict=inputdict)))
+            print('taus {}'.format(sess.run(srod.dbg_taus, feed_dict=inputdict)))
+            print('s and t {}'.format(sess.run([srod.dbg_s, srod.dbg_t], feed_dict=inputdict)))
+            '''
             s=18
             # print(np.array(sess.run(srod.faceconvexity, feed_dict=inputdict))[:, s])
             print('cancollision {}'.format(cancol[s]))
@@ -281,6 +286,7 @@ def check_failure(frames, path):
             # print('npos {}'.format(sv2[s]))
             # print('crod {}'.format(sess.run(crod.xs, feed_dict=inputdict)))
             # print('nrod {}'.format(sess.run(nrod.xs, feed_dict=inputdict)))
+            '''
 
 def run_test3():
     check_failure([47,48,49,51,51], 'testdata_ccd7')
@@ -297,6 +303,9 @@ def run_test6():
 def run_test7():
     check_failure([50,51], 'testdata_ccd7_cvx')
 
+def run_test8():
+    check_failure([140,141,142,143], 'testdata_ccd8_direct')
+
 def run():
     run_test0()
     run_test1()
@@ -305,6 +314,7 @@ def run():
     run_test4()
     run_test5()
     run_test6()
+    run_test7()
 
 if __name__ == '__main__':
-    run_test7()
+    run_test8()

@@ -14,7 +14,7 @@ This is a very flexible class. It may store:
     3. The placeholders and tensors to optimizing computational graph.
 '''
 
-_epsilon = 1e-8
+_epsilon = 1e-10
 _default_rho = 0.1
 _stiff = 1e7
 
@@ -279,7 +279,7 @@ def TFRod_RealCCD(crod, nrod, srod, ASelS, BSelS):
     b = _tri(p2, v0, v1) + _tri(v2, p0, v1) + _tri(v2, v0, p1)
     a = _tri(v2, v0, v1)
 
-    def _within1_from_tau(a, b, c):
+    def _within1_from_tau(a, b, c, dbg=None):
         axb = tf.cross(a,b)
         sqn = _sqnorm(axb, keep_dims=True)
         s = _dot(tf.cross(c,b), axb, keep_dims=True) / sqn
@@ -290,9 +290,12 @@ def TFRod_RealCCD(crod, nrod, srod, ASelS, BSelS):
         # print(sqn.get_shape())
         # print(s.get_shape())
         # print(t.get_shape())
+        if dbg is not None:
+            dbg.dbg_s = s
+            dbg.dbg_t = t
         return tf.logical_and(sgood, tgood)
 
-    def _valid_from_tau(taus):
+    def _valid_from_tau(taus, dbg=None):
         p = Q_a_sv + taus * Qdot_a_sv
         r = Q_a_ev + taus * Qdot_a_ev - p
         q = Q_b_sv + taus * Qdot_b_sv
@@ -301,20 +304,30 @@ def TFRod_RealCCD(crod, nrod, srod, ASelS, BSelS):
         rxs = tf.cross(r, s)
         nz = tf.greater(_sqnorm(rxs, keep_dims=True), _epsilon)
         nz = tf.logical_and(_roots_in_range(taus), nz)
-        return tf.logical_and(nz, tf.where(nz, _within1_from_tau(r, s, t), nz))
+        if dbg is not None:
+            dbg.dbg_taus = taus
+        return tf.logical_and(nz, tf.where(nz, _within1_from_tau(r, s, t, dbg), nz))
 
     def _valid_quadratic_roots(a,b,c):
         det = b*b - 4 * a * c
         def _first_valid_det_ge_0(a,b,c,det):
             sqrtdet = tf.sqrt(det)
-            roots1 = _clamp_roots((-b+sqrtdet)/(2*a))
-            roots2 = _clamp_roots((-b-sqrtdet)/(2*a))
+            #roots1 = _clamp_roots((-b+sqrtdet)/(2*a))
+            #roots2 = _clamp_roots((-b-sqrtdet)/(2*a))
+            roots1 = (-b+sqrtdet)/(2*a)
+            roots2 = (-b-sqrtdet)/(2*a)
             # print(roots1.get_shape())
             # print(roots2.get_shape())
             return tf.logical_or(_valid_from_tau(roots1), _valid_from_tau(roots2))
         return tf.where(tf.greater_equal(det, 0.0),
                 _first_valid_det_ge_0(a,b,c,det),
                 tf.less(det, 0.0))
+
+    def _valid_linear_roots(a,b):
+        return tf.where(tf.less_equal(tf.abs(a), _epsilon), tf.less_equal(tf.abs(b), _epsilon), _valid_from_tau(-b/a))
+
+    def _valid_quadratic_or_linear_roots(a,b,c):
+        return tf.where(tf.less_equal(tf.abs(a), _epsilon), _valid_linear_roots(b,c), _valid_quadratic_roots(a,b,c))
 
     def _valid_cubic_tri_roots(p, q, a, b):
         A = 2 * tf.sqrt(-p/3)
@@ -338,7 +351,12 @@ def TFRod_RealCCD(crod, nrod, srod, ASelS, BSelS):
                 _valid_cubic_tri_roots(p, q, a, b),
                 _valid_cubic_single_root(p, q))
 
-    cancoltv = tf.where(tf.abs(a) > _epsilon, _valid_cubic_roots(a,b,c,d), _valid_quadratic_roots(b,c,d))
+    cancoltv = tf.where(tf.abs(a) > _epsilon, _valid_cubic_roots(a,b,c,d), _valid_quadratic_or_linear_roots(b,c,d))
+    srod.dbg_a = a
+    srod.dbg_b = b
+    srod.dbg_c = c
+    srod.dbg_d = d
+    srod.vfl = _valid_from_tau(d/c, srod)
     # return tf.unstack(cancoltv, 1, axis=1)
     # return tf.shape(cancoltv)
     # return cancoltv
@@ -745,7 +763,7 @@ class ElasticRodS:
         h = ccd_h
         inputdict = helper.create_dict([irod], [icond])
         sess.run(self.init_op, feed_dict=inputdict, options=options, run_metadata=run_metadata)
-        CH = 1.0
+        CH = 1.5
         for C in range(100):
         #while True:
             #init_xs = sess.run(self.init_xs, feed_dict=inputdict)
@@ -779,9 +797,10 @@ class ElasticRodS:
                     break
                 AdaptiveCH = CH
                 while not self.DetectAndApplyImpulse(sess, h, ccddict):
-                    AdaptiveCH *= 1.2
+                    #AdaptiveCH *= 1.2
+                    AdaptiveCH += 0.2
                     ccddict.update({self.ccd_factor:AdaptiveCH})
-                    # print('AdaptiveCH {}'.format(AdaptiveCH))
+                    print('AdaptiveCH {}'.format(AdaptiveCH))
                     pass
             else:
                 break

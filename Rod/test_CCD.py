@@ -251,7 +251,7 @@ def check_failure(frames, path, narrow_distance=0.1, false_positive=False):
     sv2op = TFSignedVolumes(nrod.xs, sela_gcan, selb_gcan)
     convexity = TFRodCCDExtended(crod, nrod, srod, sela_gcan, selb_gcan)
     convexity_location = tf.where(tf.equal(convexity, True))
-    collisions = ConvexityFilter(dpairs, convexity)
+    collisions = CollisionFilter(dpairs, convexity)
 
     with tf.Session() as sess:
         sess.run(tf.global_variables_initializer())

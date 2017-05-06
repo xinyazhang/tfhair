@@ -22,7 +22,9 @@ def run_with_bc(n, h, rho, icond, path, icond_updater=None, obstacle=None):
     Run the simulation with given boundary conditions (icond)
     '''
     tf.reset_default_graph()
+    ''' Create ElasticRodS with tf.placeholder(s) as the input '''
     irod = helper.create_TFRod(n)
+    ''' Copy arguments and constraints from input conditions '''
     irod.clone_args_from(icond)
     if icond.anchors is not None:
         irod.anchors = tf.placeholder(tf.float32, shape=icond.anchors.shape)
@@ -30,13 +32,16 @@ def run_with_bc(n, h, rho, icond, path, icond_updater=None, obstacle=None):
         irod.sparse_anchor_indices = tf.placeholder(tf.int32, shape=[None, 1])
         irod.sparse_anchor_values = tf.placeholder(tf.float32, shape=[None, 3])
 
+    ''' Create the ElasticRodS for unconstrainted positions '''
     orod = irod.CalcNextRod(h)
+    ''' Create the ElasticRodS for constrainted positions '''
     rrod = orod.CalcPenaltyRelaxationTF(h)
     if obstacle is not None:
+        ''' Setup constraint operators'''
         rrod.obstacle_impulse_op = obstacle.DetectAndApplyImpulseOp(h, rrod)
 
-    # pfe = TFGetEConstaint(irod)
     saver = helper.RodSaver(path)
+    ''' Create a TF session for actual computation '''
     with tf.Session() as sess:
         sess.run(tf.global_variables_initializer())
         nframe = 720
@@ -45,9 +50,7 @@ def run_with_bc(n, h, rho, icond, path, icond_updater=None, obstacle=None):
             for frame in range(nframe):
                 if icond_updater is not None:
                     icond_updater(h, icond)
-                #inputdict = {irod.xs:xs, irod.restl:rl, irod.thetas:thetas, irod.xdots:xdots, irod:omegas:omegas}
                 inputdict = helper.create_dict([irod], [icond])
-                # print(inputdict)
                 spheres = None
                 if obstacle is not None:
                     spheres = obstacle.GetSpheres()
@@ -57,15 +60,7 @@ def run_with_bc(n, h, rho, icond, path, icond_updater=None, obstacle=None):
                     [icond.refd1s],
                     [icond.refd2s],
                     spheres)
-                # xs, xdots, thetas, omegas = sess.run([orod.xs, orod.xdots,
-                #    orod.thetas, orod.omegas], feed_dict=inputdict)
-                # print(pfe.eval(feed_dict=inputdict))
-                # print(orod.XForce.eval(feed_dict=inputdict))
-                # print("xdots {}".format(xdots))
-                # print("thetas {}".format(icond.thetas))
                 icond = rrod.Relax(sess, irod, icond)
-                # print("refd1s {}".format(icond.refd1s))
-                # print("refd2s {}".format(icond.refd2s))
                 progress.update(frame+1)
 
     saver.close()
@@ -86,6 +81,9 @@ def run_test0():
     h = 1.0/1024.0
     rho = 1.0
 
+    '''
+    Setup the initial conditions and drop them to run_with_bc
+    '''
     xs = np.array([
         [-1,0,0],
         [0,0,0],

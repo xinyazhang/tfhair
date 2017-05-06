@@ -147,6 +147,7 @@ def run_test1():
             omegas=rods_thetas,
             initd1=initd1
             )
+    icond.CH_factor = 0.5
     run_with_bc(n, h, rho, icond, '/tmp/tfccd1')
 
 def run_test2():
@@ -188,6 +189,7 @@ def run_test2():
             omegas=rods_thetas,
             initd1=initd1
             )
+    icond.CH_factor = 0.75
     run_with_bc(n, h, rho, icond, '/tmp/tfccd2')
 
 def run_test3():

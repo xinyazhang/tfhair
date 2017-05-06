@@ -408,6 +408,7 @@ def run():
     run_test16()
     run_test17()
     run_test18()
+    run_test19()
 
 if __name__ == '__main__':
-    run_test19()
+    run()

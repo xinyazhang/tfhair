@@ -488,4 +488,4 @@ def run():
     run_test8()
 
 if __name__ == '__main__':
-    run_test6()
+    run()

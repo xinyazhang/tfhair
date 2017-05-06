@@ -182,7 +182,7 @@ class HairScene(Scene):
         n_rods = len(hairs)
         n_segs = len(hairs[0].hair_keys) - 1
 
-        world2local = obj.matrix_world.inverted()
+        world2local = obj.matrix_world
         for i, h in enumerate(hairs):
             for j, hv in enumerate(h.hair_keys):
                 if j <= 2: continue
@@ -201,8 +201,9 @@ class HairScene(Scene):
         omega = np.zeros(shape=(n_rods, n_segs), dtype=np.float32)
         initds = np.zeros(shape=(n_rods, 3), dtype=np.float32)
 
+        local2world = obj.matrix_world.inverted()
         def wc(vertex):
-            return obj.matrix_world * vertex
+            return local2world * vertex
 
         # assign cpos and theta (theta not available here)
         for i, h in enumerate(hairs):
@@ -222,14 +223,16 @@ class HairScene(Scene):
         for frame, anchor in enumerate(anchors):
             print("Generate frame %d" % frame)
             bpy.context.scene.frame_set(frame)
+            local2world = obj.matrix_world.inverted()
             for i, h in enumerate(hairs):
-                anchor[i,:] = np.array(obj.matrix_world * h.hair_keys[0].co)
+                anchor[i,:] = np.array(local2world * h.hair_keys[0].co)
 
         for frame, anchor in enumerate(anchors):
             print("Generate frame %d" % frame)
             bpy.context.scene.frame_set(frame)
+            local2world = obj.matrix_world.inverted()
             for i, h in enumerate(hairs):
-                anchor[i + n_rods,:] = np.array(obj.matrix_world * h.hair_keys[1].co)
+                anchor[i + n_rods,:] = np.array(local2world * h.hair_keys[1].co)
 
         # create anchor indices
         indices = np.array([(i, 0) for i in range(n_rods)] + [(i, 1) for i in range(n_rods)], dtype=np.int32)

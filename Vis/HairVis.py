@@ -55,7 +55,7 @@ def Setup(options, args):
     scene = HairScene(options.fps)
     if options.dump is not None:
         scene.Dump(options.dump)
-    else:
+    if len(args) > 0:
         scene.SetCachePath(args[0])
         if len(args) > 1:
             scene.SetMetadata(args[1])

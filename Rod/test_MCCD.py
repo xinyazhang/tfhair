@@ -428,6 +428,7 @@ def run_test7():
         ], dtype=np.float32)
     icond.g = 9.8
     icond.rho = rho
+    icond.default_CH = 200.0
     run_with_bc(n, h, rho, icond, '/tmp/tfccd7')
 
 def run_test8():
@@ -474,6 +475,7 @@ def run_test8():
             rods_xs[0,-1,:],
         ], dtype=np.float32)
     icond.g = 9.8
+    icond.default_CH = 20.0
     run_with_bc(n, h, rho, icond, '/tmp/tfccd8')
 
 def run():
@@ -488,4 +490,4 @@ def run():
     run_test8()
 
 if __name__ == '__main__':
-    run_test6()
+    run_test8()

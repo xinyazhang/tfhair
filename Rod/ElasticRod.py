@@ -527,6 +527,12 @@ def TFApplyImpulse(h, rods, ASelS, BSelS, impulse, factor):
     '''
     # return nrods
 
+def TFApplyImpulseForce(h, rods, impulse, factor):
+    mass = _paddim(rods.fullrestvl * rods.rho)
+    deltax = h * factor * impulse / mass
+    rods.ccd_deltax = deltax
+    return rods.xs - deltax
+
 _distance_bound_ratio = 1.0
 
 def _translate_from_stacked(nrods, segidi, segidj, rodids):
@@ -655,6 +661,7 @@ class ElasticRodS:
 
     ccd_threshold = None
     ccd_factor = None
+    default_CH = 1.5
 
     def clone_args_from(self, other):
         if other is None:
@@ -670,6 +677,7 @@ class ElasticRodS:
         self.sparse_anchor_indices = other.sparse_anchor_indices
         self.sparse_anchor_values = other.sparse_anchor_values
         self.obstacle_impulse_op = other.obstacle_impulse_op
+        self.default_CH = other.default_CH
         return self
 
     c = None # Translation
@@ -803,7 +811,7 @@ class ElasticRodS:
         h = ccd_h
         inputdict = helper.create_dict([irod], [icond])
         sess.run(self.init_op, feed_dict=inputdict, options=options, run_metadata=run_metadata)
-        CH = 1.0
+        CH = self.default_CH
         for C in range(100):
         #while True:
             #init_xs = sess.run(self.init_xs, feed_dict=inputdict)
@@ -833,24 +841,28 @@ class ElasticRodS:
             if h is not None:
                 ccddict = helper.create_dict([irod], [icond])
                 ccddict.update({self.ccd_threshold: ccd_broadthresh, self.ccd_factor:CH})
-                leaving = self.DetectAndApplyImpulse(sess, h, ccddict)
+                leaving = self.DetectAndResolveCollision(sess, h, ccddict)
                 # CH += 0.1
                 if leaving:
                     break
-                AdaptiveCH = 0.1
+                """
+                AdaptiveCH = CH
                 AccumulatedCH = CH
                 NIter = 0
                 while not self.DetectAndApplyImpulse(sess, h, ccddict):
-                    # AdaptiveCH *= 1.1
                     AccumulatedCH += AdaptiveCH
-                    AdaptiveCH += 0.1
+                    AdaptiveCH *= 2.0
+                    # AdaptiveCH += 0.1
                     ccddict.update({self.ccd_factor:AdaptiveCH})
-                    print("Applying AdaptiveCH {}".format(AdaptiveCH))
+                    # print("Applying AdaptiveCH {}".format(AdaptiveCH))
                     NIter += 1
                     #if NIter > 100:
                     #    break
                     pass
-                print('Accumulated AdaptiveCH {}'.format(AccumulatedCH))
+                # print('Accumulated AdaptiveCH {}'.format(AccumulatedCH))
+                """
+                '''
+                '''
             else:
                 break
         # print "loss:", E
@@ -953,34 +965,73 @@ class ElasticRodS:
             distance_pairs = tf.cast(distance_pairs, tf.int32)
             self.sela = tf.slice(distance_pairs, [0, 0], [-1, 2])
             self.selb = tf.slice(distance_pairs, [0, 2], [-1, 2])
-        self.impulse_with_sels = TFRodCollisionImpulse(h, irod, self, self, self.sela, self.selb)
+        self.convexity = TFRodCCDExtended(irod, self, self, self.sela, self.selb)
+        self.ccd_sela = ConvexityFilter(self.sela, self.convexity)
+        self.ccd_selb = ConvexityFilter(self.selb, self.convexity)
+        # self.ccd_sela = tf.placeholder(dtype=tf.int64, shape=[None, 2])
+        # self.ccd_selb = tf.placeholder(dtype=tf.int64, shape=[None, 2])
+        self.collision_energy = tf.reduce_sum(_sqnorm(TFSignedVolumes(irod.xs, self.ccd_sela, self.ccd_selb)-TFSignedVolumes(self.xs, self.ccd_sela, self.ccd_selb)))
+        self.ccd_trainer = tf.train.AdamOptimizer(1e-3)
+        self.ccd_XForce = self.trainer.compute_gradients(self.collision_energy)
+        self.ccd_XGrads = \
+            [(grad[0] / _paddim(self.fullrestvl * self.rho), grad[1]) for grad in self.ccd_XForce]
+        self.ccd_XGradsSV = \
+            [(grad[0] * tf.sqrt(self.collision_energy), grad[1]) for grad in self.ccd_XForce]
+        self.ccd_apply_grads_op = self.ccd_trainer.apply_gradients(self.ccd_XGrads)
         self.ccd_factor = tf.placeholder(dtype=tf.float32)
+        self.ccd_apply_wrt_SV = self.ccd_trainer.apply_gradients(self.ccd_XGradsSV)
+        '''
+        TODO: Replace TFRodCollisionImpulse with optimization ops.
+        '''
+        # self.impulse_with_sels = TFRodCollisionImpulse(h, irod, self, self, self.sela, self.selb)
+        '''
         self.applied_xs = TFApplyImpulse(h, self,\
                 self.impulse_with_sels[1],\
                 self.impulse_with_sels[2],\
                 self.impulse_with_sels[0],
                 self.ccd_factor
                 )
+        '''
+        '''
+        self.applied_xs = TFApplyImpulseForce(h, self, self.ccd_XForce, self.ccd_factor)
         self.apply_impulse_op = tf.assign(self.xs, self.applied_xs)
+        '''
         # print(self.apply_impulse_op)
         return self
 
+    """
     def DetectAndApplyImpulse(self, sess, h, inputdict):
         # print('xs before impulse {}'.format(sess.run(self.xs, feed_dict=inputdict)))
+        '''
         ops = [tf.concat([self.impulse_with_sels[1], self.impulse_with_sels[2]], axis=1),\
                 self.impulse_with_sels[0],\
+                self.apply_impulse_op]
+        '''
+        ops = [tf.concat([self.ccd_sela, self.ccd_selb], axis=1),\
+                self.ccd_deltax,\
                 self.apply_impulse_op]
         sels_results, impulse_results, _ = sess.run(ops, feed_dict=inputdict)
         # cvx = sess.run(self.convexity, feed_dict=inputdict)
         # print('detected collision {}'.format(np.concatenate([sela_results, selb_results], axis=1)))
         # print('convexity list {}'.format(cvx))
         # print(sess.run(self.impulse_with_sels, feed_dict=inputdict))
-        if len(sels_results) != 0:
-            print('impulse {}'.format(impulse_results))
-            print('collision {}'.format(sels_results))
+        #if len(sels_results) != 0:
+        #    print('impulse {}'.format(impulse_results))
+        #    print('collision {}'.format(sels_results))
         # print('xs after impulse {}'.format(sess.run(self.xs, feed_dict=inputdict)))
         return len(sels_results) == 0
         # return True
+    """
+
+    def DetectAndResolveCollision(self, sess, h, inputdict):
+        '''
+        for i in range(2000):
+            E, _ = sess.run([self.collision_energy, self.ccd_apply_grads_op], feed_dict=inputdict)
+            if math.fabs(E) <= 0.0:
+                break
+            print('ccd_loss (iter:{}): {}'.format(i, E))
+        '''
+        sqSV, _ = sess.run([self.collision_energy, self.ccd_apply_wrt_SV], feed_dict=inputdict)
 
     def GetMidPointsTF(self):
         if self.midpoints is None:

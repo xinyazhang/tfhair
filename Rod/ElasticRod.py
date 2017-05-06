@@ -651,7 +651,7 @@ class ElasticRodS:
         if learning_rate is None:
             learning_rate = self.constraint_learning_rate
 
-        xs = tf.Variable(np.zeros(shape=self.xs.get_shape().as_list(), dtype=np.float32), name='xs')
+        xs = tf.Variable(np.zeros(shape=self.xs.get_shape().as_list(), dtype=np.float32), name='xs_var')
         relaxxdots = self.xdots + (xs - self.xs) / h
         relaxrod = ElasticRodS(
                 xs=xs,
@@ -673,7 +673,7 @@ class ElasticRodS:
             [(grad[0] / _paddim(relaxrod.fullrestvl * relaxrod.rho), grad[1]) for grad in relaxrod.grads]
         relaxrod.apply_grads_op = relaxrod.trainer.apply_gradients(relaxrod.weighted_grads)
         if (not self.refd1s is None) and (not self.refd2s is None):
-            TFPropogateRefDs(self, relaxrod, normalize=True)
+            TFPropogateRefDs(self, relaxrod, normalize=False)
         return relaxrod
 
     def GetVariableList(self):

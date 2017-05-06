@@ -495,7 +495,7 @@ def run_test12():
     n2 = len(list(iterator2))
     n = n1 + n2 - 1
     h = 1.0/1024.0
-    rho = 1e-2
+    rho = 1e-4
 
     def FixedTwisterII(h, icond):
         icond.thetas[0] = pi * icond.t
@@ -520,14 +520,18 @@ def run_test12():
             )
     icond.sparse_anchor_indices = np.array([
             [0],
-            [2],
+            [half_segs],
         ], dtype=np.int32)
     icond.sparse_anchor_values = np.array([
             xs[0,:],
-            xs[2,:],
+            xs[half_segs,:],
         ], dtype=np.float32)
+    icond.anchor_stiffness = 1e4
+    icond.alpha = 0.002
     icond.beta = 10
+    icond.constraint_iterations = 2000
     icond.t = 0
+    icond.rho = rho
     run_with_bc(n, h, rho, icond, '/tmp/tftest12', icond_updater=FixedTwisterII)
 
 def parse_args():

@@ -1,7 +1,6 @@
 #!/usr/bin/env python2
-'''
-Test for Hair Motions
-'''
+import os
+os.environ['TF_CPP_MIN_LOG_LEVEL']='3'  # suppress tensorflow warnings
 
 import sys
 import numpy as np
@@ -92,13 +91,13 @@ def run_hair_bench(matfile):
             omegas=omegas,
             initd1=initd1
     )
-    icond.alpha = 1e-12
-    icond.beta = 1e-8
+    icond.alpha = 0
+    icond.beta = 0
     icond.g = 9.8
 
     n_rods, n_segs = thetas.shape
     h = 1.0/1024.0
-    rho = 1e-3
+    rho = 1e-2
 
     icond.sparse_anchor_indices = anchor_indices
     icond.sparse_anchor_values = anchor_values[0]
@@ -107,7 +106,8 @@ def run_hair_bench(matfile):
     radii = mdict["obstacle_radii"]
     obstacle = SphericalBodyS(centers, radii)
 
-    run_with_bc(n_rods, n_segs, h, rho, icond, anchor_values, '/tmp/tfhair', obstacle=obstacle)
+    path = os.path.join("/tmp/tfhair", os.path.basename(matfile).split(".")[0])
+    run_with_bc(n_rods, n_segs, h, rho, icond, anchor_values, path, obstacle=obstacle)
 
 if __name__ == "__main__":
     run_hair_bench(sys.argv[1])

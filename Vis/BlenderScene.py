@@ -182,11 +182,11 @@ class HairScene(Scene):
         n_rods = len(hairs)
         n_segs = len(hairs[0].hair_keys) - 1
 
-        world2local = obj.matrix_world
+        # world2local = obj.matrix_world
         for i, h in enumerate(hairs):
             for j, hv in enumerate(h.hair_keys):
                 if j <= 2: continue
-                hv.co = world2local * mathutils.Vector(xs[0,i,j,:])
+                hv.co = mathutils.Vector(xs[0,i,j,:])
 
     def Dump(self, filename):
         obj = bpy.data.objects["Head"]

@@ -388,8 +388,8 @@ def run_test7():
     '''
     n = 20
     h = 1.0/1024.0
-    rho = 1.0
-    height = 3.0
+    rho = 0.05
+    height = 2.0
 
     delta = 0.2
     roda_xs = helper.create_string(np.array([-5,0,0]), np.array([5,0,0]), n)
@@ -427,6 +427,7 @@ def run_test7():
             rods_xs[0,-1,:],
         ], dtype=np.float32)
     icond.g = 9.8
+    icond.rho = rho
     run_with_bc(n, h, rho, icond, '/tmp/tfccd7')
 
 def run_test8():
@@ -460,7 +461,7 @@ def run_test8():
             omegas=rods_thetas,
             initd1=initd1
             )
-    icond.alpha = 0.05
+    icond.alpha = 0.125
     icond.beta = 0.05
     icond.t = 0.0
     icond.ccd_threshold = 200.0 / h

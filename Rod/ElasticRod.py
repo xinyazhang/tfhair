@@ -705,7 +705,7 @@ class ElasticRodS:
                         # print('Leaving at Iter {}'.format(i))
                         break
             if math.fabs(E) > 1e3:
-                    print('Exploded with loss: {}'.format(E))
+                    raise Exception('Exploded with loss: {}'.format(E))
             if self.obstacle_impulse_op is not None:
                 obstacle_impulse = sess.run(self.obstacle_impulse_op, feed_dict=inputdict, options=options, run_metadata=run_metadata)
             ''' Collision handling '''

@@ -42,26 +42,29 @@ def run_with_bc(n, h, rho, icond, path, icond_updater=None, obstacle=None):
 
     saver = helper.RodSaver(path)
     ''' Create a TF session for actual computation '''
-    with tf.Session() as sess:
-        sess.run(tf.global_variables_initializer())
-        nframe = 720
-        # nframe = 10
-        with progressbar.ProgressBar(max_value=nframe) as progress:
-            for frame in range(nframe):
-                if icond_updater is not None:
-                    icond_updater(h, icond)
-                inputdict = helper.create_dict([irod], [icond])
-                spheres = None
-                if obstacle is not None:
-                    spheres = obstacle.GetSpheres()
-                saver.add_timestep(
-                    [icond.xs],
-                    [icond.thetas],
-                    [icond.refd1s],
-                    [icond.refd2s],
-                    spheres)
-                icond = rrod.Relax(sess, irod, icond)
-                progress.update(frame+1)
+    try:
+        with tf.Session() as sess:
+            sess.run(tf.global_variables_initializer())
+            nframe = 720
+            # nframe = 10
+            with progressbar.ProgressBar(max_value=nframe) as progress:
+                for frame in range(nframe):
+                    if icond_updater is not None:
+                        icond_updater(h, icond)
+                    inputdict = helper.create_dict([irod], [icond])
+                    spheres = None
+                    if obstacle is not None:
+                        spheres = obstacle.GetSpheres()
+                    saver.add_timestep(
+                        [icond.xs],
+                        [icond.thetas],
+                        [icond.refd1s],
+                        [icond.refd2s],
+                        spheres)
+                    icond = rrod.Relax(sess, irod, icond)
+                    progress.update(frame+1)
+    except Exception as e:
+        print(e)
 
     saver.close()
 

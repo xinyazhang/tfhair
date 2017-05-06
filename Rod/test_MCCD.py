@@ -1,6 +1,6 @@
 #!/usr/bin/env python2
 '''
-Test for Motions
+Test for Two-Rod Motions with Collision Detection
 '''
 
 import numpy as np
@@ -26,44 +26,28 @@ def run_with_bc(n, h, rho, icond, path, icond_updater=None):
 
     orod = irod.CalcNextRod(h)
     rrod = orod.CalcPenaltyRelaxationTF(h)
-    ''' Hack: This check collision b/w Rod 0 Seg # and Rod 1 Seg # '''
-    # rrod.sela = tf.constant(np.array([[0, i] for i in range(n)]), dtype=tf.int32)
-    # rrod.selb = tf.constant(np.array([[1, i] for i in range(n)]), dtype=tf.int32)
     rrod = rrod.CreateCCDNode(irod, h)
 
-    # TODO: Calulate SelS in ElasticRodS directly.
-    # sela_data = np.array([[0, i] for i in range(n)])
-    # selb_data = np.array([[1, i] for i in range(n)])
-# pfe = TFGetEConstaint(irod)
     saver = helper.RodSaver(path)
-    with tf.Session() as sess:
-        sess.run(tf.global_variables_initializer())
-        nframe = 720
-        # nframe = 120
-        with progressbar.ProgressBar(max_value=nframe) as progress:
-            for frame in range(nframe):
-                if icond_updater is not None:
-                    icond_updater(h, icond)
-                #inputdict = {irod.xs:xs, irod.restl:rl, irod.thetas:thetas, irod.xdots:xdots, irod:omegas:omegas}
-                inputdict = helper.create_dict([irod], [icond])
-                # inputdict.update({rrod.sela: sela_data, rrod.selb: selb_data})
-                # print(inputdict)
-                saver.add_timestep(
-                    [icond.xs],
-                    [icond.thetas],
-                    [icond.refd1s],
-                    [icond.refd2s])
-                # xs, xdots, thetas, omegas = sess.run([orod.xs, orod.xdots,
-                #    orod.thetas, orod.omegas], feed_dict=inputdict)
-                # print(pfe.eval(feed_dict=inputdict))
-                # print(orod.XForce.eval(feed_dict=inputdict))
-                # print("xdots {}".format(xdots))
-                # print("thetas {}".format(icond.thetas))
-                icond = rrod.Relax(sess, irod, icond, ccd_h=h, ccd_broadthresh=icond.ccd_threshold)
-                # print('xs {}'.format(icond.xs))
-                # print("refd1s {}".format(icond.refd1s))
-                # print("refd2s {}".format(icond.refd2s))
-                progress.update(frame+1)
+    try:
+        with tf.Session() as sess:
+            sess.run(tf.global_variables_initializer())
+            nframe = 720
+            # nframe = 120
+            with progressbar.ProgressBar(max_value=nframe) as progress:
+                for frame in range(nframe):
+                    if icond_updater is not None:
+                        icond_updater(h, icond)
+                    inputdict = helper.create_dict([irod], [icond])
+                    saver.add_timestep(
+                        [icond.xs],
+                        [icond.thetas],
+                        [icond.refd1s],
+                        [icond.refd2s])
+                    icond = rrod.Relax(sess, irod, icond, ccd_h=h, ccd_broadthresh=icond.ccd_threshold)
+                    progress.update(frame+1)
+    except Exception as e:
+        print(e)
 
     saver.close()
 
@@ -356,7 +340,6 @@ def run_test6():
     icond.t = 0.0
     icond.ccd_threshold = 0.05/h
     def DualRotator(h, icond):
-        #icond.sparse_anchor_values[2, :] = np.array([math.cos(icond.t), math.sin(icond.t), 5.0], dtype=np.float32)
         icond.sparse_anchor_values = np.array([
                 [math.cos(icond.t), math.sin(icond.t)+0.01, -2.5 + icond.t * 0.005],
                 [1, 0.01, 2.5],
@@ -364,10 +347,6 @@ def run_test6():
                 [0,0,-2.5 + delta],
                 [0,0,2.5 + delta],
                 ], dtype=np.float32)
-        # print([math.cos(icond.t), math.sin(icond.t), 5.0])
-        # print(icond.sparse_anchor_values)
-        # print(icond.t)
-        #icond.sparse_anchor_values[3] = np.array([math.cos(-icond.t), math.sin(-icond.t), 0.0 + icond.t])
         icond.t += h * 64
     icond.sparse_anchor_indices = np.array([
             [0, 0],
@@ -381,8 +360,10 @@ def run_test6():
             rods_xs[1,0,:],
             rods_xs[1,-1,:],
         ], dtype=np.float32)
-    # icond.g = 9.8
+    icond.CH_factor = 1.4
     run_with_bc(n, h, rho, icond, '/tmp/tfccd6', icond_updater=DualRotator)
+    icond.CH_factor = 0.5
+    run_with_bc(n, h, rho, icond, '/tmp/tfccd6_soft', icond_updater=DualRotator)
 
 def run_test7():
     '''
@@ -430,6 +411,7 @@ def run_test7():
         ], dtype=np.float32)
     icond.g = 9.8
     icond.rho = rho
+    icond.CH_factor = 1.4
     run_with_bc(n, h, rho, icond, '/tmp/tfccd7')
 
 def run_test8():

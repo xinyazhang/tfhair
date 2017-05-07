@@ -116,7 +116,6 @@ def TFGetLengthConstraintFunction(rod):
     sqrest = rod.restl * rod.restl;
     return sqlen - sqrest
 
-# For unit \alpha
 def TFParallelTransportQuaternion(prod, crod):
     axes = -tf.cross(prod.tans, crod.tans)
     cosines = _dot(prod.tans, crod.tans)

@@ -262,6 +262,7 @@ def run_test5():
             omegas=omegas,
             initd1=np.array([0,1,0])
             )
+    icond.constraint_iterations = 1000
     run_with_bc(n, h, rho, icond, '/tmp/tftest5')
 
 @test
@@ -383,6 +384,7 @@ def run_test9():
 
     icond.anchors = np.array([0,0,1])
     icond.g = 9.8
+    icond.constraint_iterations = 1000
 
     def FixedAnchor(h, icond):
         icond.anchors = np.array([0.0, 0.0, 1.0])
@@ -483,11 +485,6 @@ def run_test12():
     '''
     Test 12: twisting with anchor points, version 2
     '''
-
-    """
-    works only for half_segs=1,2
-    fails to correctly propagate on the third segment
-    """
     half_segs = 3
     iterator1 = xrange(-half_segs,0)
     iterator2 = xrange(0,half_segs+1)

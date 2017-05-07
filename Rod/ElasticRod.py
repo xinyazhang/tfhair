@@ -527,6 +527,7 @@ class ElasticRodS:
 
     ccd_threshold = None
     ccd_factor = None
+    ccd_resolve_hard = True
     CH_factor = 1.0
 
     def clone_args_from(self, other):
@@ -548,6 +549,7 @@ class ElasticRodS:
         self.sparse_anchor_indices = other.sparse_anchor_indices
         self.sparse_anchor_values = other.sparse_anchor_values
         self.obstacle_impulse_op = other.obstacle_impulse_op
+        self.ccd_resolve_hard = other.ccd_resolve_hard
         self.CH_factor = other.CH_factor
         return self
 
@@ -717,7 +719,7 @@ class ElasticRodS:
                     break
                 AdaptiveCH = CH * 0.1
                 AccumulatedCH = CH
-                while not self.DetectAndApplyImpulse(sess, h, ccddict):
+                while self.ccd_resolve_hard and not self.DetectAndApplyImpulse(sess, h, ccddict):
                     AccumulatedCH += AdaptiveCH
                     # AdaptiveCH *= 1.1
                     AdaptiveCH += CH * 0.1

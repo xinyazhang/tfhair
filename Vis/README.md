@@ -46,13 +46,18 @@ initial conditions. We provide two hair models: short hair and long hair.
 ./HairVis.py -- --dump=LongHair.mat --template=LongHair.blend /tmp/tfhair/LongHair/
 
 # Open a new terminal, change to Rod directory.
-# run bench_hair, takes
+
+# run bench_hair without CCD, takes
 # a. about 2 minutes on Nvidia GeForce 970
-# b. about 7 minutes on CPU
+# b. about 3 minutes on UTCS Lab machine
 
 cd ../Rod
 python2 bench_hair.py ../Vis/ShortHair.mat
 python2 bench_hair.py ../Vis/LongHair.mat
+
+# run bench_hair with CCD
+python2 bench_hair.py --enable-collision ../Vis/ShortHair.mat
+python2 bench_hair.py --enable-collision ../Vis/LongHair.mat
 
 # Once bench_hair.py finishes, go back to blender, press alt+a to play.
 # Or just click on play button for simulation result.

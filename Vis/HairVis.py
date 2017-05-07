@@ -62,9 +62,13 @@ def Setup(options, args):
         bpy.app.handlers.frame_change_pre.append(LoadFrameCallback)
 
         path = scene.cache_path
+        os.makedirs(path, exist_ok=True)
         names = filter(lambda x: ".mat" in x, os.listdir(path))
-        frames = map(lambda x: int(x.strip(".mat")), names)
-        end_frame = max(frames) + 1
+        frames = list(map(lambda x: int(x.strip(".mat")), names))
+        if len(frames) > 0:
+            end_frame = max(frames) + 1
+        else:
+            end_frame = 382
         scene.SetEndFrame(end_frame)
 
 @persistent

@@ -47,10 +47,6 @@ initial conditions. We provide two hair models: short hair and long hair.
 
 # Open a new terminal, change to Rod directory.
 
-# run bench_hair without CCD, takes
-# a. about 2 minutes on Nvidia GeForce 970
-# b. about 3 minutes on UTCS Lab machine
-
 cd ../Rod
 python2 bench_hair.py ../Vis/ShortHair.mat
 python2 bench_hair.py ../Vis/LongHair.mat

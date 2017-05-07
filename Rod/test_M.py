@@ -51,6 +51,7 @@ def run_with_bc(n, h, rho, icond, path, icond_updater=None, obstacle=None):
                 for frame in range(nframe):
                     if icond_updater is not None:
                         icond_updater(h, icond)
+                    ''' input dictionary for graph computation '''
                     inputdict = helper.create_dict([irod], [icond])
                     spheres = None
                     if obstacle is not None:
@@ -61,6 +62,10 @@ def run_with_bc(n, h, rho, icond, path, icond_updater=None, obstacle=None):
                         [icond.refd1s],
                         [icond.refd2s],
                         spheres)
+                    '''
+                    Given initial conditions, run the Relaxation step
+                    to get the configurations of the next frame.
+                    '''
                     icond = rrod.Relax(sess, irod, icond)
                     progress.update(frame+1)
     except Exception as e:

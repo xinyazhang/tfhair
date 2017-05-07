@@ -62,6 +62,9 @@ should be located in the top right corner, where you select objects in the scene
 
 Switching through each scene, you can visualize each test individually.
 
+Similarly, ``test_MCCD.py`` generates data files under ``/tmp/tfccd0`` to
+``/tmp/tfccd8/``. They can also be visualized.
+
 ## Visualization of Hair Simulation
 
 We provide two hair models for simulation. One for short hair, and
